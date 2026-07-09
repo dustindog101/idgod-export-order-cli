@@ -98,6 +98,40 @@ class Person:
 
 
 @dataclass
+class ShippingInfo:
+    email: str = ""
+    name: str = ""
+    street: str = ""
+    city: str = ""
+    state: str = ""
+    zip: str = ""
+    country: str = "USA"
+    raw: str = ""
+
+    @property
+    def first_name(self) -> str:
+        parts = self.name.split()
+        return parts[0] if parts else ""
+
+    @property
+    def last_name(self) -> str:
+        parts = self.name.split()
+        return " ".join(parts[1:]) if len(parts) > 1 else ""
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "email": self.email,
+            "name": self.name,
+            "street": self.street,
+            "city": self.city,
+            "state": self.state,
+            "zip": self.zip,
+            "country": self.country,
+            "raw": self.raw,
+        }
+
+
+@dataclass
 class OrderResult:
     person: Person
     success: bool
@@ -133,6 +167,12 @@ class CheckoutResult:
     dry_run: bool = False
     proxy_used: str = ""
     probe_results: list[dict] = field(default_factory=list)
+    checkout_attempted: bool = False
+    checkout_completed: bool = False
+    checkout_message: str = ""
+    checkout_fields: list[str] = field(default_factory=list)
+    checkout_missing_fields: list[str] = field(default_factory=list)
+    shipping: ShippingInfo | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -149,5 +189,11 @@ class CheckoutResult:
             "dry_run": self.dry_run,
             "proxy_used": self.proxy_used,
             "probe_results": self.probe_results,
+            "checkout_attempted": self.checkout_attempted,
+            "checkout_completed": self.checkout_completed,
+            "checkout_message": self.checkout_message,
+            "checkout_fields": self.checkout_fields,
+            "checkout_missing_fields": self.checkout_missing_fields,
+            "shipping": self.shipping.to_dict() if self.shipping else None,
             "orders": [o.to_dict() for o in self.order_results],
         }

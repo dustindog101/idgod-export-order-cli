@@ -7,9 +7,9 @@ import json
 import sys
 from pathlib import Path
 
-from .models import Person
+from .models import Person, ShippingInfo
 from .orderer import IdGodOrderer, DEFAULT_DISCOUNT, ORDER_URL
-from .parser import parse_file, person_from_flags
+from .parser import extract_shipping_text, parse_file, parse_shipping_text, person_from_flags
 from .proxies import (
     ProxyConfig,
     TorManager,
@@ -66,6 +66,19 @@ def _add_person_args(p: argparse.ArgumentParser) -> None:
     p.add_argument("--fallback-signature", default="", help="Local signature when export URL is dead")
     p.add_argument("--timeout", type=int, default=60, help="Page timeout seconds (default: 60)")
     p.add_argument("--limit", type=int, default=0, help="Max people to submit from file (0=all)")
+    p.add_argument("--checkout", action="store_true", help="After cart submit, fill checkout email/shipping fields")
+    p.add_argument("--checkout-submit", action="store_true", help="Submit checkout form after filling it (does not pay)")
+    p.add_argument("--email", default="", help="Checkout email address")
+    p.add_argument("--shipping", default="", help='Checkout shipping line, e.g. "Name, Street, City, ST, ZIP, USA"')
+    p.add_argument("--shipping-name", default="", help="Override checkout recipient name")
+    p.add_argument("--shipping-street", default="", help="Override checkout street address")
+    p.add_argument("--shipping-city", default="", help="Override checkout city")
+    p.add_argument("--shipping-state", default="", help="Override checkout state")
+    p.add_argument("--shipping-zip", default="", help="Override checkout ZIP/postal code")
+    p.add_argument("--shipping-country", default="", help="Override checkout country (default: USA)")
+    p.add_argument("--payment-method", default="", help="Checkout payment: Bitcoin, Litecoin, or card (default: Bitcoin when --checkout)")
+    p.add_argument("--shipping-method", default="", help="Shipping: standard ($20), express ($50), super ($120)")
+    p.add_argument("--debug-dir", default="", help="Write cart/checkout HTML and control metadata for troubleshooting")
     p.add_argument("--first-name")
     p.add_argument("--middle-name", default="")
     p.add_argument("--last-name")
@@ -159,6 +172,34 @@ def _load_people(args: argparse.Namespace) -> list[Person]:
     )
 
 
+def _load_shipping(args: argparse.Namespace, people: list[Person]) -> ShippingInfo:
+    path_str = args.file_flag or args.file
+    raw_shipping = args.shipping
+    if not raw_shipping and path_str:
+        raw_shipping = extract_shipping_text(Path(path_str))
+
+    shipping = parse_shipping_text(raw_shipping)
+    if args.email:
+        shipping.email = args.email
+    elif people:
+        shipping.email = people[0].email
+
+    if args.shipping_name:
+        shipping.name = args.shipping_name
+    if args.shipping_street:
+        shipping.street = args.shipping_street
+    if args.shipping_city:
+        shipping.city = args.shipping_city
+    if args.shipping_state:
+        shipping.state = args.shipping_state
+    if args.shipping_zip:
+        shipping.zip = args.shipping_zip
+    if args.shipping_country:
+        shipping.country = args.shipping_country
+
+    return shipping
+
+
 def _print_result(result, as_json: bool) -> None:
     if as_json:
         print(json.dumps(result.to_dict(), indent=2))
@@ -179,6 +220,12 @@ def _print_result(result, as_json: bool) -> None:
         print(f"Payment URL: {result.payment_url}")
     if result.payment_info:
         print(f"Payment info:\n{result.payment_info}")
+    if result.checkout_attempted:
+        print(f"Checkout: {result.checkout_message or 'attempted'}")
+        if result.checkout_fields:
+            print(f"Checkout fields filled: {', '.join(result.checkout_fields)}")
+        if result.checkout_missing_fields:
+            print(f"Checkout fields missing: {', '.join(result.checkout_missing_fields)}")
     if result.discount_code:
         applied = "yes" if result.discount_applied else "no"
         print(f"Discount '{result.discount_code}' applied: {applied}")
@@ -239,6 +286,9 @@ async def _cmd_probe(args: argparse.Namespace) -> int:
 
 async def _cmd_order(args: argparse.Namespace) -> int:
     people = _load_people(args)
+    if args.checkout and not args.payment_method:
+        args.payment_method = "Bitcoin"
+    shipping = _load_shipping(args, people) if args.checkout else ShippingInfo()
 
     if not args.yes and not args.dry_run:
         names = ", ".join(p.display_name for p in people)
@@ -248,6 +298,9 @@ async def _cmd_order(args: argparse.Namespace) -> int:
             print("Routing: Tor")
         elif args.proxy or args.proxy_file:
             print(f"Routing: proxy ({len(_collect_proxies(args))} configured)")
+        if args.checkout:
+            print(f"Checkout email: {shipping.email or '(missing)'}")
+            print(f"Shipping: {shipping.raw or shipping.street or '(missing)'}")
         try:
             ans = input("Continue? [y/N] ").strip().lower()
         except EOFError:
@@ -268,6 +321,12 @@ async def _cmd_order(args: argparse.Namespace) -> int:
         proxies=_collect_proxies(args),
         use_tor=args.tor,
         auto_proxy=not args.no_auto_proxy,
+        checkout=args.checkout,
+        checkout_submit=args.checkout_submit,
+        shipping=shipping,
+        payment_method=args.payment_method,
+        shipping_method=args.shipping_method,
+        debug_dir=args.debug_dir,
     )
 
     result = await orderer.submit(people)

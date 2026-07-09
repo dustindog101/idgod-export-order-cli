@@ -31,11 +31,26 @@
 | Status | Internal |
 | Payment | Internal |
 | Payment Method | Internal |
-| Shipping | Delivery address — **needs checkout step (not yet wired)** |
 | Tracking # | Internal |
 | Order Note | Internal |
 | Export Note | Internal |
 | Order Total | Internal pricing |
+
+## Export → checkout
+
+`Shipping` is not sent to the ID form. It is parsed only when `--checkout` is enabled, then used for checkout delivery fields.
+
+| Export column / CLI flag | Checkout value |
+|--------------------------|----------------|
+| Shipping | `name`, `street`, `city`, `state`, `zip`, `country` |
+| Email / `--email` | checkout email |
+| `--shipping` | full shipping override |
+| `--shipping-name` | recipient name override |
+| `--shipping-street` | street override |
+| `--shipping-city` | city override |
+| `--shipping-state` | state override |
+| `--shipping-zip` | zip override |
+| `--shipping-country` | country override |
 
 ## Shipping column format (from sample)
 
@@ -43,7 +58,13 @@
 Anaya Samsotha-Cooley, 5125 Leona St, Oakland, CA, 94619, USA
 ```
 
-**TODO:** Parse and fill on cart checkout page (separate from on-ID address).
+This now parses automatically with `--checkout` and can be verified without a browser:
+
+```bash
+./idgod-order order --file /Users/king/Downloads/orders-2026-07-08.xlsx \
+  --fallback-photo /Users/king/Desktop/good.jpg \
+  --checkout --email test@example.com --dry-run -y --json
+```
 
 ## State dropdown
 

@@ -6,7 +6,7 @@ import re
 from pathlib import Path
 from typing import Any
 
-from .models import EXPORT_ONLY_FIELDS, FIELD_ALIASES, Person
+from .models import EXPORT_ONLY_FIELDS, FIELD_ALIASES, Person, ShippingInfo
 
 
 def _norm_key(key: str) -> str:
@@ -110,3 +110,96 @@ def parse_file(path: Path) -> list[Person]:
 
 def person_from_flags(args: dict[str, str | None]) -> Person:
     return _row_to_person({k: v for k, v in args.items() if v}, source_row=None)
+
+
+def _shipping_from_row(row: dict[str, Any]) -> str:
+    for raw_key, raw_val in row.items():
+        key = _norm_key(str(raw_key))
+        if key == "shipping" and raw_val is not None and str(raw_val).strip():
+            return str(raw_val).strip()
+    return ""
+
+
+def extract_shipping_text(path: Path) -> str:
+    suffix = path.suffix.lower()
+    if suffix == ".csv":
+        with path.open(newline="", encoding="utf-8-sig") as f:
+            reader = csv.DictReader(f)
+            for row in reader:
+                found = _shipping_from_row(row)
+                if found:
+                    return found
+        return ""
+
+    if suffix in (".xlsx", ".xls"):
+        try:
+            import openpyxl
+        except ImportError as e:
+            raise RuntimeError("openpyxl required: pip install openpyxl") from e
+
+        wb = openpyxl.load_workbook(path, read_only=True, data_only=True)
+        ws = wb[wb.sheetnames[0]]
+        rows = list(ws.iter_rows(values_only=True))
+        if not rows:
+            return ""
+        headers = [str(h or "").strip() for h in rows[0]]
+        for row in rows[1:]:
+            data = {headers[j]: row[j] if j < len(row) else "" for j in range(len(headers))}
+            found = _shipping_from_row(data)
+            if found:
+                return found
+        return ""
+
+    if suffix == ".json":
+        data = json.loads(path.read_text(encoding="utf-8"))
+        if isinstance(data, dict) and "people" in data:
+            items = data["people"]
+        elif isinstance(data, list):
+            items = data
+        else:
+            items = [data]
+        for item in items:
+            if isinstance(item, dict):
+                found = _shipping_from_row(item)
+                if found:
+                    return found
+        return ""
+
+    return ""
+
+
+def parse_shipping_text(text: str) -> ShippingInfo:
+    raw = text.strip()
+    if not raw:
+        return ShippingInfo()
+
+    parts = [p.strip() for p in raw.split(",") if p and p.strip()]
+    if len(parts) >= 5:
+        return ShippingInfo(
+            name=parts[0],
+            street=parts[1],
+            city=parts[2],
+            state=parts[3],
+            zip=parts[4],
+            country=parts[5] if len(parts) > 5 else "USA",
+            raw=raw,
+        )
+
+    match = re.search(
+        r"^(?P<name>.+?),?\s+(?P<street>\d+.+?),?\s+"
+        r"(?P<city>[A-Za-z .'-]+),?\s+(?P<state>[A-Za-z]{2,}|[A-Za-z .'-]+)\s+"
+        r"(?P<zip>\d{5}(?:-\d{4})?)",
+        raw,
+    )
+    if match:
+        data = match.groupdict()
+        return ShippingInfo(
+            name=data["name"].strip(),
+            street=data["street"].strip(),
+            city=data["city"].strip(),
+            state=data["state"].strip(),
+            zip=data["zip"].strip(),
+            raw=raw,
+        )
+
+    return ShippingInfo(raw=raw)
