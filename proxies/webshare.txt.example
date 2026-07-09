@@ -1,0 +1,9 @@
+# Webshare proxy list — one per line
+# Format: host:port:username:password
+#
+# Copy to webshare.txt and fill in credentials:
+#   cp proxies/webshare.txt.example proxies/webshare.txt
+#
+# Example (replace with your Webshare dashboard values):
+# 31.56.127.193:7684:YOUR_USER:YOUR_PASS
+# 198.23.243.226:6361:YOUR_USER:YOUR_PASS
