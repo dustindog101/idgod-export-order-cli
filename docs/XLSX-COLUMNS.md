@@ -4,6 +4,8 @@ Analyzed from `orders-2026-07-08.xlsx` (4 people, 1 shared checkout).
 
 ## Per-person fields (each row can differ)
 
+Maps to the ID order form. If idgod lists multiple dropdown options for a state, the CLI **picks the cheapest match by default** (override with `--state-variant`).
+
 | Column | Maps to | Example row 2 vs 3 |
 |--------|---------|---------------------|
 | State | ID form state | Washington (same) |

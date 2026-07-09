@@ -102,7 +102,7 @@ class IdGodOrderer:
         discount_code: str = DEFAULT_DISCOUNT,
         fallback_photo: str = "",
         fallback_signature: str = "",
-        cheapest_state: bool = False,
+        cheapest_state: bool = True,
         state_variants: dict[str, str] | None = None,
         dry_run: bool = False,
         timeout_ms: int = 60000,

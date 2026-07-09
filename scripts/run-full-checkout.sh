@@ -8,7 +8,6 @@ exec ./idgod-order order \
   --proxy "$PROXY" \
   --fallback-photo ~/Desktop/good.jpg \
   --fallback-signature ~/Desktop/good.jpg \
-  --state-variant "Washington=Washington" \
   --discount hartlr \
   --email test@proton.me \
   -y

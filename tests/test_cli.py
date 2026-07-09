@@ -41,6 +41,30 @@ def test_order_defaults_full_flow():
     assert args.captcha_solver == "auto"
     assert args.captcha_attempts == 10
     assert args.no_fetch_payment is False
+    assert args.payment_method is None
+    assert args.shipping_method is None
+
+    from idgod_order_cli.cli import _parse_state_variants
+
+    variants = _parse_state_variants(args.state_variant)
+    assert variants == {}  # → cheapest_state True in _cmd_order
+
+
+def test_payment_and_shipping_choices():
+    args = build_parser().parse_args(
+        [
+            "order",
+            "x.csv",
+            "--email",
+            "a@b.com",
+            "--payment-method",
+            "litecoin",
+            "--shipping-method",
+            "express",
+        ]
+    )
+    assert args.payment_method == "litecoin"
+    assert args.shipping_method == "express"
 
 
 def test_proxy_file_uses_first_only():

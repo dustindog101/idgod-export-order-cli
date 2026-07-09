@@ -19,7 +19,23 @@ from .proxies import (
     test_proxy_httpx,
     test_proxy_playwright,
 )
+from .help_text import (
+    ORDER_DESCRIPTION,
+    ORDER_EPILOG,
+    PAYMENT_CHOICES,
+    PAYMENT_HELP,
+    ROOT_DESCRIPTION,
+    SHIPPING_CHOICES,
+    SHIPPING_HELP,
+)
 from .ui import RunUI, format_result_human
+
+
+class _OrderHelpFormatter(argparse.RawDescriptionHelpFormatter):
+    def __init__(self, *args, **kwargs):
+        kwargs.setdefault("max_help_position", 36)
+        kwargs.setdefault("width", 88)
+        super().__init__(*args, **kwargs)
 
 
 def _add_proxy_args(p: argparse.ArgumentParser) -> None:
@@ -64,18 +80,19 @@ def _add_person_args(p: argparse.ArgumentParser) -> None:
         action="append",
         default=[],
         metavar="STATE=LABEL",
-        help='ID type on order form when ambiguous, e.g. "Washington=Washington"',
+        help="Force a specific ID dropdown label when default cheapest is wrong",
     )
     ov.add_argument(
-        "--cheapest-state",
-        action="store_true",
-        help="Pick cheapest ID type when multiple match a state",
+        "--payment-method",
+        choices=PAYMENT_CHOICES,
+        default=None,
+        help=PAYMENT_HELP,
     )
-    ov.add_argument("--payment-method", default="", help="Bitcoin (default), Litecoin, or card")
     ov.add_argument(
         "--shipping-method",
-        default="",
-        help="standard $20 (default), express $50, super $120",
+        choices=SHIPPING_CHOICES,
+        default=None,
+        help=SHIPPING_HELP,
     )
     ov.add_argument("--shipping", default="", help='Override cart shipping, e.g. "Name, St, City, ST, ZIP, USA"')
     ov.add_argument("--shipping-name", default="")
@@ -131,30 +148,17 @@ def _add_person_args(p: argparse.ArgumentParser) -> None:
 def build_parser() -> argparse.ArgumentParser:
     root = argparse.ArgumentParser(
         prog="idgod-order",
-        description="Submit fake-ID orders to idgod.ph from a spreadsheet export.",
+        description=ROOT_DESCRIPTION,
+        formatter_class=_OrderHelpFormatter,
     )
     sub = root.add_subparsers(dest="command")
 
     order_p = sub.add_parser(
         "order",
-        help="Place order(s) end-to-end (ID forms → cart → checkout → BTCPay)",
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog="""
-Each spreadsheet row = one ID (name, DOB, Seattle address, photo, etc.).
-The Shipping column = one shared delivery address at checkout.
-Data comes from your export file; --email and --fallback-photo are the usual extras.
-
-Examples:
-  idgod-order order orders.xlsx --tor --email you@proton.me \\
-    --fallback-photo ~/Desktop/good.jpg
-
-  idgod-order order orders.xlsx --proxy-file proxies/webshare.txt \\
-    --email you@proton.me --fallback-photo ~/Desktop/good.jpg --limit 1
-
-  idgod-order order orders.xlsx --dry-run
-  idgod-order probe --tor
-  idgod-order cache list
-""",
+        help="Place order(s): ID forms → cart → checkout → BTCPay",
+        description=ORDER_DESCRIPTION,
+        formatter_class=_OrderHelpFormatter,
+        epilog=ORDER_EPILOG,
     )
     _add_person_args(order_p)
     _add_proxy_args(order_p)
@@ -345,7 +349,7 @@ async def _cmd_order(args: argparse.Namespace) -> int:
     full_order = not args.dry_run
 
     if full_order and not args.payment_method:
-        args.payment_method = "Bitcoin"
+        args.payment_method = "bitcoin"
 
     shipping = _load_shipping(args, people) if full_order else ShippingInfo()
 
@@ -377,13 +381,16 @@ async def _cmd_order(args: argparse.Namespace) -> int:
     if full_order:
         ui.banner(ids=len(people), routing=routing, modes=["checkout", "submit", "payment"])
 
+    state_variants = _parse_state_variants(args.state_variant)
+    cheapest_state = len(state_variants) == 0
+
     orderer = IdGodOrderer(
         headless=not args.headed,
         discount_code=args.discount,
         fallback_photo=args.fallback_photo,
         fallback_signature=args.fallback_signature,
-        cheapest_state=args.cheapest_state,
-        state_variants=_parse_state_variants(args.state_variant),
+        cheapest_state=cheapest_state,
+        state_variants=state_variants,
         dry_run=args.dry_run,
         timeout_ms=args.timeout * 1000,
         proxies=_collect_proxies(args),
