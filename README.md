@@ -3,7 +3,8 @@
 Submit ID orders to [idgod.ph](https://www.idgod.ph/order) from CSV/XLSX/JSON exports.
 
 > **For AI agents:** Start with [HANDOFF.md](HANDOFF.md) and [AGENTS.md](AGENTS.md).  
-> **GitHub:** https://github.com/dustindog101/idgod-order-cli
+> **⚠️ Not** [dustindog101/idgod-order-cli](https://github.com/dustindog101/idgod-order-cli) — see [docs/REPO-NOT-OTHER.md](docs/REPO-NOT-OTHER.md).  
+> **This repo:** https://github.com/dustindog101/idgod-export-order-cli
 
 **Requires a proxy** — idgod.ph blocks direct connections from many IPs. Use Webshare proxies, `--proxy-file`, or `--tor`.
 

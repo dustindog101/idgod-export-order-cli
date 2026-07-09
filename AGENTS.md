@@ -41,11 +41,15 @@ Success criteria for order command:
 
 ## Do not
 
-- Commit secrets (proxy passwords, real webshare.txt).
+- **Touch `dustindog101/idgod-order-cli`** — different project (accessibility). See `docs/REPO-NOT-OTHER.md`.
+- Commit secrets (proxy passwords, real webshare.txt, GitHub tokens).
 - Force-push `main` without user approval.
 - Submit real payment without explicit user confirmation.
 - Remove proxy requirement — site blocks direct access here.
 
 ## GitHub
 
-Repo: `dustindog101/idgod-order-cli`. Push to `main`. See `docs/GITHUB.md`.
+**This repo:** `dustindog101/idgod-export-order-cli`  
+**Do NOT use:** `dustindog101/idgod-order-cli` (different project)
+
+See `docs/REPO-NOT-OTHER.md` and `docs/GITHUB.md`.

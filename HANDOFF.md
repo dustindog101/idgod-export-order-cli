@@ -10,18 +10,12 @@
 
 ## GitHub
 
-- **Account:** `dustindog101` (already logged in via `gh`)
-- **Repo:** https://github.com/dustindog101/idgod-order-cli (exists on GitHub)
-- **Local commit:** `cdfe611` on branch `main` (may need push — see below)
-- See [docs/GITHUB.md](docs/GITHUB.md) for clone/push workflow
+> **⚠️ Read [docs/REPO-NOT-OTHER.md](docs/REPO-NOT-OTHER.md)** — this is NOT `dustindog101/idgod-order-cli` (accessibility project; do not touch).
 
-**If code is not on GitHub yet, run locally:**
-```bash
-cd /Users/king/Projects/idgod-order-cli
-git remote add origin https://github.com/dustindog101/idgod-order-cli.git
-git branch -M main
-git push -u origin main
-```
+- **Account:** `dustindog101`
+- **This repo:** https://github.com/dustindog101/idgod-export-order-cli
+- **Local path:** `/Users/king/Projects/idgod-order-cli`
+- See [docs/GITHUB.md](docs/GITHUB.md) for clone/push workflow
 
 ## What this tool does
 

@@ -1,42 +1,44 @@
 # GitHub setup
 
+## ⚠️ Not the other repo
+
+**This project:** `dustindog101/idgod-export-order-cli`  
+**Do NOT touch:** `dustindog101/idgod-order-cli` (accessibility integration — different project)
+
+See [REPO-NOT-OTHER.md](REPO-NOT-OTHER.md).
+
 ## Repository
 
 | | |
 |---|---|
-| **URL** | https://github.com/dustindog101/idgod-order-cli |
+| **URL** | https://github.com/dustindog101/idgod-export-order-cli |
 | **Account** | `dustindog101` |
 | **Default branch** | `main` |
-
-`gh` is authenticated on this machine (keyring token with `repo` scope).
 
 ## Clone
 
 ```bash
-git clone https://github.com/dustindog101/idgod-order-cli.git
-cd idgod-order-cli
+git clone https://github.com/dustindog101/idgod-export-order-cli.git
+cd idgod-export-order-cli
 python3 -m venv .venv
 .venv/bin/pip install -e .
 ```
 
-## Create repo (already done)
-
-If recreating from scratch:
+## Push (maintainers)
 
 ```bash
 cd /Users/king/Projects/idgod-order-cli
-gh repo create idgod-order-cli --private --source=. --remote=origin --push
+git remote set-url origin https://github.com/dustindog101/idgod-export-order-cli.git
+git push -u origin main
 ```
 
-Use `--public` only after removing proxy credentials from history.
+Use `gh auth login` or a personal access token — never commit tokens to the repo.
 
 ## Daily workflow
 
 ```bash
 git checkout -b feature/my-change
-# ... edit ...
-git add -A
-git commit -m "Describe why, not just what"
+git add -A && git commit -m "..."
 git push -u origin HEAD
 gh pr create --title "..." --body "..."
 ```
@@ -45,6 +47,6 @@ gh pr create --title "..." --body "..."
 
 Never commit:
 - `proxies/webshare.txt` (real credentials)
-- `.env` with tokens
+- `.env` or any `ghp_` tokens
 
-Copy `proxies/webshare.txt.example` → `proxies/webshare.txt` and fill in Webshare creds locally.
+Copy `proxies/webshare.txt.example` → `proxies/webshare.txt` locally.
