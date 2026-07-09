@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import re
+import shutil
 import socket
 import subprocess
 import tempfile
@@ -85,14 +86,23 @@ def load_proxies_from_file(path: Path) -> list[ProxyConfig]:
 
 
 class TorManager:
-    """Provide a local SOCKS5 proxy via system tor or embedded torpy."""
+    """Local SOCKS5 via existing Tor, spawned tor binary, or embedded torpy (last resort)."""
 
     def __init__(self) -> None:
         self.port: int | None = None
         self._proc: subprocess.Popen | None = None
         self._torpy_server = None
         self._torpy_client = None
+        self._data_dir: str = ""
+        self._torrc_path: str = ""
+        self._owned = False
         self.mode = ""
+
+    def __enter__(self) -> TorManager:
+        return self
+
+    def __exit__(self, *args) -> None:
+        self.stop()
 
     def _socks_reachable(self, port: int, timeout: float = 2.0) -> bool:
         try:
@@ -102,32 +112,36 @@ class TorManager:
             return False
 
     def start(self, timeout: float = 45.0) -> ProxyConfig:
-        # 1) Existing Tor daemon
+        # 1) Existing Tor daemon (no resources owned by us)
         for port in (9050, 9150):
             if self._socks_reachable(port):
                 self.port = port
                 self.mode = f"existing-tor:{port}"
+                self._owned = False
                 return ProxyConfig(host="127.0.0.1", port=port, scheme="socks5", label=self.mode)
 
-        # 2) Launch system tor binary
+        # 2) Launch system tor binary (minimal disk/memory; we own the process + temp dir)
         import shutil
         tor_bin = shutil.which("tor")
         if tor_bin:
             port = _free_port()
-            data_dir = tempfile.mkdtemp(prefix="idgod-tor-")
-            torrc_path = tempfile.mktemp(suffix=".torrc")
-            with open(torrc_path, "w", encoding="utf-8") as f:
+            self._data_dir = tempfile.mkdtemp(prefix="idgod-tor-")
+            self._torrc_path = tempfile.mktemp(suffix=".torrc")
+            with open(self._torrc_path, "w", encoding="utf-8") as f:
                 f.write(
                     f"SocksPort {port}\n"
-                    f"DataDirectory {data_dir}\n"
-                    "Log notice stderr\n"
+                    f"DataDirectory {self._data_dir}\n"
                     "AvoidDiskWrites 1\n"
+                    "MaxMemInQueues 32 MB\n"
+                    "DisableDebuggerAttachment 1\n"
+                    "Log notice stderr\n"
                 )
             self._proc = subprocess.Popen(
-                [tor_bin, "-f", torrc_path],
+                [tor_bin, "-f", self._torrc_path],
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
             )
+            self._owned = True
             deadline = time.time() + timeout
             while time.time() < deadline:
                 if self._proc.poll() is not None:
@@ -140,7 +154,7 @@ class TorManager:
             self.stop()
             raise RuntimeError("System tor failed to start SOCKS proxy in time")
 
-        # 3) Embedded torpy (pure Python, no tor install)
+        # 3) Embedded torpy (heavier; last resort)
         try:
             from torpy import TorClient
             from torpy.socks import SocksServer
@@ -157,6 +171,7 @@ class TorManager:
         self._torpy_server.start()
         self.port = port
         self.mode = f"torpy-embedded:{port}"
+        self._owned = True
         return ProxyConfig(host="127.0.0.1", port=port, scheme="socks5", label=self.mode)
 
     def stop(self) -> None:
@@ -166,6 +181,7 @@ class TorManager:
                 self._proc.wait(timeout=5)
             except subprocess.TimeoutExpired:
                 self._proc.kill()
+                self._proc.wait(timeout=3)
             self._proc = None
         if self._torpy_server:
             try:
@@ -179,6 +195,17 @@ class TorManager:
             except Exception:
                 pass
             self._torpy_client = None
+        if self._data_dir:
+            shutil.rmtree(self._data_dir, ignore_errors=True)
+            self._data_dir = ""
+        if self._torrc_path:
+            try:
+                Path(self._torrc_path).unlink(missing_ok=True)
+            except OSError:
+                pass
+            self._torrc_path = ""
+        self.port = None
+        self._owned = False
 
 
 async def test_proxy_httpx(proxy: ProxyConfig, url: str, timeout: float = 20.0) -> dict[str, Any]:

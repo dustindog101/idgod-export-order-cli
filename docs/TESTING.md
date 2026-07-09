@@ -1,5 +1,34 @@
 # Testing
 
+## Unit tests
+
+```bash
+pip install -e '.[dev]'
+pytest tests/ -m "not integration" -v
+```
+
+Covers: parser (multi-person CSV), captcha helpers, order cache, BTCPay HTML parsing, proxy/Tor manager cleanup.
+
+## Tor integration test (slow, needs Tor)
+
+```bash
+pytest tests/test_proxies.py::test_tor_probe_idgod -v
+# or CLI:
+./idgod-order probe --tor --method httpx --json
+```
+
+Uses existing Tor on `:9050`/`:9150` if running; otherwise spawns `tor` and cleans up after.
+
+## Fetch BTCPay payment details
+
+After `--checkout-submit`, optionally scrape the invoice page:
+
+```bash
+./idgod-order order ... --checkout --checkout-submit --fetch-payment -v --json
+```
+
+JSON `payment_details` includes: `amount_due_btc`, `total_fiat`, `btc_address`, `pay_in_wallet_url`, `exchange_rate`, `invoice_id`.
+
 ## Probe (no order placed)
 
 ```bash

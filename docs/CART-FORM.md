@@ -49,4 +49,4 @@ CLI aliases: `standard`, `express`, `super` — see `selectors.SHIPPING_ALIASES`
 ## Automation limits
 
 - CLI fills all fields + coupon and clicks **UPDATE**
-- **FINISH ORDER** requires captcha — use `--headed` and complete manually, or `--checkout-submit` only when captcha is solvable
+- **FINISH ORDER** requires captcha — use `--checkout-submit` with `--captcha-solver ppllocr` or `2captcha`, or `--headed` + manual solve

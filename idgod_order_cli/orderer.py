@@ -1,15 +1,26 @@
 from __future__ import annotations
 
+import json
 import re
 import tempfile
-import json
+import time
 from pathlib import Path
 from typing import Any
-from urllib.parse import urlparse
+from urllib.parse import urljoin, urlparse
 
 import httpx
 
-from .models import CheckoutResult, OrderResult, Person, ShippingInfo
+from .btcpay import PaymentDetails, fetch_btcpay_from_page
+from .cache import OrderCache, default_cache_dir
+from .captcha import (
+    CAPTCHA_LEN_MAX,
+    CAPTCHA_LEN_MIN,
+    CaptchaSolverError,
+    best_captcha_guess,
+    normalize_captcha_text,
+    solve_captcha_image,
+)
+from .models import CheckoutFillMeta, CheckoutResult, OrderResult, Person, ShippingInfo
 from .proxies import ProxyConfig, TorManager, pick_working_proxy
 from .selectors import (
     CART_BUTTONS,
@@ -97,13 +108,21 @@ class IdGodOrderer:
         timeout_ms: int = 60000,
         proxies: list[ProxyConfig] | None = None,
         use_tor: bool = False,
-        auto_proxy: bool = True,
+        auto_proxy: bool = False,
         checkout: bool = False,
         checkout_submit: bool = False,
+        captcha_solver: str = "auto",
+        twocaptcha_key: str = "",
+        captcha_attempts: int = 5,
         shipping: ShippingInfo | None = None,
         payment_method: str = "",
         shipping_method: str = "",
         debug_dir: str = "",
+        input_file: str = "",
+        cache_dir: str = "",
+        use_cache: bool = True,
+        fetch_payment: bool = False,
+        ui: Any = None,
     ):
         self.headless = headless
         self.discount_code = discount_code
@@ -118,17 +137,30 @@ class IdGodOrderer:
         self.auto_proxy = auto_proxy
         self.checkout = checkout
         self.checkout_submit = checkout_submit
+        self.captcha_solver = captcha_solver
+        self.twocaptcha_key = twocaptcha_key
+        self.captcha_attempts = max(1, captcha_attempts)
         self.shipping = shipping or ShippingInfo()
         self.payment_method = payment_method
         self.shipping_method = shipping_method
         self.debug_dir = Path(debug_dir).expanduser() if debug_dir else None
+        self.input_file = input_file
+        self.cache_dir = cache_dir
+        self.use_cache = use_cache
+        self.fetch_payment = fetch_payment
+        self.ui = ui
         self._tor_mgr = TorManager()
         self._active_proxy: ProxyConfig | None = None
         self._probe_results: list[dict] = []
 
     async def _resolve_proxy(self) -> ProxyConfig | None:
         if self.use_tor:
+            if self.ui:
+                self.ui.phase("Routing")
+                self.ui.step("Starting Tor…")
             self._active_proxy = self._tor_mgr.start()
+            if self.ui:
+                self.ui.ok(f"Tor ready ({self._active_proxy.display})")
             return self._active_proxy
 
         if not self.proxies:
@@ -136,11 +168,22 @@ class IdGodOrderer:
 
         if not self.auto_proxy:
             self._active_proxy = self.proxies[0]
+            if self.ui:
+                self.ui.phase("Routing")
+                self.ui.ok(f"Using proxy {self._active_proxy.display}")
             return self._active_proxy
 
+        if self.ui:
+            self.ui.phase("Routing")
+            self.ui.step(f"Probing {len(self.proxies)} proxy(s)…")
         working, results = await pick_working_proxy(self.proxies, ORDER_URL)
         self._probe_results = results
         self._active_proxy = working
+        if self.ui:
+            if working:
+                self.ui.ok(f"Proxy OK: {working.display}")
+            else:
+                self.ui.fail("No working proxy found")
         return working
 
     def _launch_kwargs(self, proxy: ProxyConfig | None) -> dict[str, Any]:
@@ -195,6 +238,8 @@ class IdGodOrderer:
         return options
 
     async def _fill_person(self, page, person: Person, *, checkout: bool = False) -> OrderResult:
+        if self.ui:
+            self.ui.detail(f"Selecting state for {person.state}")
         state_options = await self._get_state_options(page)
         variant = person.state_variant or self.state_variants.get(person.state, "")
         chosen, note = pick_state_option(
@@ -208,6 +253,8 @@ class IdGodOrderer:
 
         feet, inches = parse_height(person.height or "5'6\"")
         try:
+            if self.ui:
+                self.ui.detail(f"Filling form: {person.display_name}")
             await self._fill_sel(page, "first_name", person.first_name)
             if person.middle_name:
                 await self._fill_sel(page, "middle_name", person.middle_name)
@@ -235,9 +282,13 @@ class IdGodOrderer:
                 await page.locator(SELECTORS[key]).dispatch_event("blur")
 
             photo_path = await _resolve_image(person.photo, self.fallback_photo, self._active_proxy)
+            if self.ui:
+                self.ui.detail("Uploading photo")
             await page.locator(SELECTORS["picture"]).set_input_files(str(photo_path))
 
             if person.signature or self.fallback_signature:
+                if self.ui:
+                    self.ui.detail("Uploading signature")
                 sig_path = await _resolve_image(person.signature, self.fallback_signature, self._active_proxy)
                 sig_loc = page.locator(SELECTORS["signature"])
                 if await sig_loc.count():
@@ -260,6 +311,9 @@ class IdGodOrderer:
 
             action_val = "2" if checkout else "1"
             submit = page.locator(f'button[name="action"][value="{action_val}"]')
+            if self.ui:
+                dest = "checkout" if checkout else "cart"
+                self.ui.step(f"Submitting → {dest}")
 
             try:
                 async with page.expect_navigation(timeout=self.timeout_ms):
@@ -284,6 +338,9 @@ class IdGodOrderer:
 
             await page.wait_for_load_state("domcontentloaded")
             await page.wait_for_timeout(1000)
+
+            if self.ui:
+                self.ui.ok(f"{person.display_name} · {chosen.label}")
 
             return OrderResult(
                 person=person,
@@ -364,7 +421,219 @@ class IdGodOrderer:
         await loc.fill(value)
         filled.append(key)
 
-    async def _fill_checkout(self, page) -> tuple[bool, str, list[str], list[str]]:
+    async def _fetch_captcha_image(self, page) -> bytes:
+        img = page.locator(CART_SELECTORS["captcha_image"]).first
+        if await img.count() == 0:
+            raise CaptchaSolverError("Captcha image not found on cart page")
+
+        await img.wait_for(state="visible", timeout=self.timeout_ms)
+        await page.wait_for_timeout(400)
+
+        # In-page fetch uses the same Tor/proxy session + cookies as the visible image.
+        try:
+            data = await page.evaluate(
+                """async () => {
+                  const img = document.querySelector('img.captcha, img[src*="/captcha/image/"]');
+                  if (!img || !img.src) return null;
+                  if (!img.complete) {
+                    await new Promise((resolve, reject) => {
+                      img.onload = resolve;
+                      img.onerror = reject;
+                      setTimeout(resolve, 1500);
+                    });
+                  }
+                  const r = await fetch(img.src, {credentials: 'same-origin'});
+                  if (!r.ok) return null;
+                  const buf = await r.arrayBuffer();
+                  return Array.from(new Uint8Array(buf));
+                }"""
+            )
+            if data:
+                body = bytes(data)
+                if body[:8] == b"\x89PNG\r\n\x1a\n":
+                    return body
+        except Exception:
+            pass
+
+        src = await img.get_attribute("src")
+        if src:
+            full_url = urljoin(page.url, src)
+            try:
+                resp = await page.request.get(full_url)
+                if resp.ok:
+                    body = await resp.body()
+                    if body and body[:8] == b"\x89PNG\r\n\x1a\n":
+                        return body
+            except Exception:
+                pass
+
+        shot = await img.screenshot()
+        if shot and shot[:8] == b"\x89PNG\r\n\x1a\n":
+            return shot
+        raise CaptchaSolverError("Captcha image bytes are not a valid PNG")
+
+    async def _save_captcha_debug(self, image_bytes: bytes, label: str) -> Path:
+        base = self.debug_dir
+        if not base:
+            base = default_cache_dir() / "captcha-debug"
+        base.mkdir(parents=True, exist_ok=True)
+        safe = re.sub(r"[^a-z0-9_-]+", "-", label.lower()).strip("-")
+        stamp = time.strftime("%Y%m%d-%H%M%S")
+        path = base / f"captcha-{stamp}-{safe}.png"
+        path.write_bytes(image_bytes)
+        return path
+
+    async def _refresh_captcha(self, page) -> None:
+        img = page.locator(CART_SELECTORS["captcha_image"]).first
+        if await img.count():
+            try:
+                await img.click()
+                await page.wait_for_timeout(900)
+                return
+            except Exception:
+                pass
+
+        refresh = page.locator(
+            'a[href*="captcha/refresh"], .captcha-refresh, [onclick*="captcha"]'
+        )
+        if await refresh.count():
+            await refresh.first.click()
+            await page.wait_for_timeout(800)
+            return
+
+        try:
+            await page.evaluate(
+                """async () => {
+                  const endpoints = ['/captcha/refresh/', '/captcha/refresh'];
+                  for (const path of endpoints) {
+                    try {
+                      const r = await fetch(path, {credentials: 'same-origin'});
+                      if (!r.ok) continue;
+                      const data = await r.json();
+                      const hash = document.querySelector('#id_captcha_0');
+                      const image = document.querySelector('img.captcha, img[src*="/captcha/image/"]');
+                      if (hash && data.key) hash.value = data.key;
+                      if (image && data.image_url) image.src = data.image_url;
+                      return;
+                    } catch (e) {}
+                  }
+                }"""
+            )
+            await page.wait_for_timeout(500)
+        except Exception:
+            pass
+
+    async def _submit_captcha_answer(self, page, captcha_input, text: str) -> bool:
+        await captcha_input.fill(text)
+        finish = page.locator(CART_BUTTONS["finish"])
+        if not await finish.count():
+            return False
+
+        try:
+            async with page.expect_navigation(timeout=self.timeout_ms):
+                await finish.click()
+        except Exception:
+            await finish.click()
+            await page.wait_for_timeout(2500)
+
+        body = await page.content()
+        if re.search(r"invalid captcha|incorrect captcha|captcha.*invalid", body, re.I):
+            return False
+        if await captcha_input.is_visible() and re.search(
+            r"errorlist|alert-danger|has-error", body, re.I
+        ):
+            return False
+        return True
+
+    async def _solve_and_fill_captcha(
+        self, page, *, max_attempts: int | None = None
+    ) -> tuple[bool, str, str, int, int]:
+        max_attempts = max_attempts or self.captcha_attempts
+        started = time.time()
+        attempts_used = 0
+        captcha_input = page.locator(CART_SELECTORS["captcha"])
+        if await captcha_input.count() == 0 or not await captcha_input.is_visible():
+            return True, "No captcha on page", "", 0, 0
+
+        if self.captcha_solver == "manual":
+            return (
+                False,
+                "Captcha required — use --headed and solve manually, or set --captcha-solver ppllocr|2captcha",
+                "",
+                0,
+                0,
+            )
+
+        last_error = ""
+        solver_used = ""
+        captcha_mode = self.captcha_solver
+        if captcha_mode == "ppllocr" and self.use_tor:
+            captcha_mode = "auto"
+
+        for attempt in range(1, max_attempts + 1):
+            attempts_used = attempt
+            if attempt > 1:
+                await self._refresh_captcha(page)
+
+            if self.ui:
+                self.ui.step(f"Attempt {attempt}/{max_attempts}: reading captcha image")
+
+            try:
+                image_bytes = await self._fetch_captcha_image(page)
+                debug_path = await self._save_captcha_debug(image_bytes, f"attempt-{attempt}")
+                result = await solve_captcha_image(
+                    image_bytes,
+                    mode=captcha_mode,
+                    api_key=self.twocaptcha_key,
+                )
+                solver_used = result["solver"]
+                raw_text = result.get("raw_text") or result["text"]
+                guess = result.get("guess") or best_captcha_guess(raw_text)
+            except CaptchaSolverError as e:
+                last_error = str(e)
+                continue
+
+            if not guess:
+                last_error = f"OCR returned empty captcha text (saved {debug_path})"
+                if self.ui:
+                    self.ui.warn(last_error)
+                continue
+
+            raw_len = len(normalize_captcha_text(raw_text))
+            if raw_len < CAPTCHA_LEN_MIN or raw_len > CAPTCHA_LEN_MAX:
+                last_error = (
+                    f"OCR raw length {raw_len} for '{raw_text}', submitting trimmed guess '{guess}' "
+                    f"(attempt {attempt}/{max_attempts}, image {debug_path})"
+                )
+                if self.ui:
+                    self.ui.detail(f"OCR '{raw_text}' → trimmed '{guess}'")
+            else:
+                last_error = f"Trying '{guess}' from {solver_used} (attempt {attempt}/{max_attempts})"
+                if self.ui:
+                    self.ui.detail(f"OCR guess '{guess}' ({solver_used})")
+
+            if await self._submit_captcha_answer(page, captcha_input, guess):
+                solve_ms = int((time.time() - started) * 1000)
+                if self.ui:
+                    self.ui.ok(f"Captcha solved: {guess} ({solver_used}, {solve_ms}ms)")
+                return (
+                    True,
+                    f"Captcha solved with {solver_used}: {guess}"
+                    + (f" (raw OCR: {raw_text})" if guess != raw_text.lower() else ""),
+                    solver_used,
+                    solve_ms,
+                    attempts_used,
+                )
+            last_error = f"Captcha rejected for '{guess}' (raw OCR: {raw_text}, attempt {attempt}/{max_attempts})"
+            if self.ui:
+                self.ui.warn(f"Rejected '{guess}' — refreshing")
+
+        solve_ms = int((time.time() - started) * 1000)
+        if self.ui:
+            self.ui.fail(last_error or "Captcha solving failed")
+        return False, last_error or "Captcha solving failed", solver_used, solve_ms, attempts_used
+
+    async def _fill_checkout(self, page) -> CheckoutFillMeta:
         shipping = self.shipping
         required = {
             "email": shipping.email,
@@ -376,10 +645,25 @@ class IdGodOrderer:
         }
         missing_values = [key for key, value in required.items() if not value]
         if missing_values:
-            return False, f"Missing checkout values: {', '.join(missing_values)}", [], missing_values
+            return CheckoutFillMeta(
+                completed=False,
+                message=f"Missing checkout values: {', '.join(missing_values)}",
+                filled=[],
+                missing=missing_values,
+            )
 
         filled: list[str] = []
         missing: list[str] = []
+        captcha_solver = ""
+        captcha_solved = False
+        captcha_solve_time_ms = 0
+        captcha_attempts_used = 0
+
+        total_before, _ = await self._read_totals(page)
+
+        if self.ui:
+            self.ui.phase("Checkout")
+            self.ui.step("Filling shipping & payment")
 
         await self._fill_cart_field(page, "name", shipping.name, filled, missing)
         await self._fill_cart_field(page, "email", shipping.email, filled, missing)
@@ -413,40 +697,67 @@ class IdGodOrderer:
         if self.discount_code:
             coupon = page.locator(CART_SELECTORS["coupon"])
             if await coupon.count():
+                if self.ui:
+                    self.ui.detail(f"Applying coupon {self.discount_code}")
                 await coupon.fill(self.discount_code)
                 filled.append("coupon")
 
-        if self.checkout_submit:
-            captcha = page.locator(CART_SELECTORS["captcha"])
-            if await captcha.count() and await captcha.is_visible():
-                missing.append("captcha")
-                return (
-                    False,
-                    "Checkout blocked: captcha required — use --headed and complete FINISH ORDER manually",
-                    filled,
-                    missing,
-                )
-            finish = page.locator(CART_BUTTONS["finish"])
-            if await finish.count():
-                try:
-                    async with page.expect_navigation(timeout=self.timeout_ms):
-                        await finish.click()
-                except Exception:
-                    await finish.click()
-                    await page.wait_for_timeout(3000)
-                filled.append("checkout_submit")
-            else:
-                missing.append("checkout_submit")
-        else:
-            update = page.locator(CART_BUTTONS["update"])
-            if await update.count() and filled:
-                try:
-                    async with page.expect_navigation(timeout=self.timeout_ms):
-                        await update.click()
-                except Exception:
+        update = page.locator(CART_BUTTONS["update"])
+        if await update.count() and filled:
+            if self.ui:
+                self.ui.step("Updating cart")
+            try:
+                async with page.expect_navigation(timeout=self.timeout_ms):
                     await update.click()
-                    await page.wait_for_timeout(2500)
-                filled.append("cart_update")
+            except Exception:
+                await update.click()
+                await page.wait_for_timeout(2500)
+            filled.append("cart_update")
+
+        total_after, _ = await self._read_totals(page)
+
+        if self.checkout_submit:
+            await page.wait_for_timeout(500)
+            await self._refresh_captcha(page)
+
+        if self.checkout_submit:
+            if self.ui:
+                self.ui.phase("Captcha")
+            ok, captcha_msg, captcha_solver, captcha_solve_time_ms, captcha_attempts_used = (
+                await self._solve_and_fill_captcha(page)
+            )
+            if ok and captcha_solver:
+                filled.append("captcha")
+                captcha_solved = True
+            elif not ok:
+                missing.append("captcha")
+                return CheckoutFillMeta(
+                    completed=False,
+                    message=captcha_msg,
+                    filled=filled,
+                    missing=missing,
+                    captcha_solver=captcha_solver,
+                    captcha_solved=captcha_solved,
+                    captcha_solve_time_ms=captcha_solve_time_ms,
+                    captcha_attempts_used=captcha_attempts_used,
+                    total_before_discount=total_before,
+                    total_after_discount=total_after,
+                )
+            else:
+                finish = page.locator(CART_BUTTONS["finish"])
+                if await finish.count():
+                    try:
+                        async with page.expect_navigation(timeout=self.timeout_ms):
+                            await finish.click()
+                    except Exception:
+                        await finish.click()
+                        await page.wait_for_timeout(3000)
+                    filled.append("checkout_submit")
+                else:
+                    missing.append("checkout_submit")
+
+        if self.checkout_submit and captcha_solved and "checkout_submit" not in filled:
+            filled.append("checkout_submit")
 
         essential = {"email", "name", "address", "city", "state", "zip"}
         essential_missing = [m for m in missing if m in essential]
@@ -459,9 +770,26 @@ class IdGodOrderer:
         message = "Checkout fields filled on cart page"
         if self.checkout_submit and "checkout_submit" in filled:
             message = f"Order finished; URL: {page.url}"
+            if captcha_solver:
+                message += f" (captcha: {captcha_solver}, {captcha_solve_time_ms}ms)"
         elif missing:
             message = f"Checkout partially filled; missing: {', '.join(missing)}"
-        return completed, message, filled, missing
+
+        if self.checkout_submit and completed:
+            total_after, _ = await self._read_totals(page)
+
+        return CheckoutFillMeta(
+            completed=completed,
+            message=message,
+            filled=filled,
+            missing=missing,
+            captcha_solver=captcha_solver,
+            captcha_solved=captcha_solved,
+            captcha_solve_time_ms=captcha_solve_time_ms,
+            captcha_attempts_used=captcha_attempts_used,
+            total_before_discount=total_before,
+            total_after_discount=total_after,
+        )
 
     async def _read_totals(self, page) -> tuple[float | None, int]:
         total_el = page.locator("#total")
@@ -504,10 +832,18 @@ class IdGodOrderer:
         )
 
     async def submit(self, people: list[Person]) -> CheckoutResult:
+        run_started = time.time()
+        timings: dict[str, int] = {}
+
         if not people:
             return CheckoutResult(success=False, message="No people to order")
 
         if self.dry_run:
+            if self.ui:
+                self.ui.phase("Dry run")
+                for i, p in enumerate(people, 1):
+                    self.ui.progress(i, len(people), p.display_name)
+                    self.ui.ok(f"Would order {p.display_name} ({p.state})")
             results = [
                 OrderResult(
                     person=p,
@@ -529,6 +865,7 @@ class IdGodOrderer:
                 checkout_completed=not self.checkout,
                 checkout_message="Dry run complete — checkout not launched" if self.checkout else "",
                 shipping=self.shipping if self.checkout else None,
+                events=self.ui.events if self.ui else [],
             )
 
         try:
@@ -552,12 +889,33 @@ class IdGodOrderer:
                 )
 
             async with async_playwright() as pw:
-                browser = await self._launch_browser(pw)
+                if self.ui:
+                    self.ui.phase("Browser")
+                    self.ui.step("Launching Chromium…")
+                try:
+                    browser = await self._launch_browser(pw)
+                except Exception as e:
+                    return CheckoutResult(
+                        success=False,
+                        message=(
+                            f"Browser launch failed: {e}. "
+                            "Run from Terminal.app (not Cursor agent shell), or try --headed."
+                        ),
+                        proxy_used=proxy.display if proxy else "direct",
+                        probe_results=self._probe_results,
+                        discount_code=self.discount_code,
+                        checkout_attempted=self.checkout,
+                    )
                 context = await browser.new_context(user_agent=USER_AGENT, viewport={"width": 1400, "height": 900})
                 page = await context.new_page()
                 page.set_default_timeout(self.timeout_ms)
+                if self.ui:
+                    self.ui.ok("Browser ready")
 
                 try:
+                    if self.ui:
+                        self.ui.phase("Order forms")
+                        self.ui.step(f"Navigating to {ORDER_URL}")
                     resp = await page.goto(ORDER_URL, wait_until="domcontentloaded", timeout=self.timeout_ms)
                     if not resp or not resp.ok:
                         return CheckoutResult(
@@ -570,8 +928,12 @@ class IdGodOrderer:
 
                     await page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
                     await page.wait_for_timeout(1500)
+                    if self.ui:
+                        self.ui.ok("Order page loaded")
 
                     for i, person in enumerate(people):
+                        if self.ui:
+                            self.ui.progress(i + 1, len(people), person.display_name)
                         if i > 0:
                             await page.goto(ORDER_URL, wait_until="domcontentloaded")
                             await page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
@@ -595,51 +957,94 @@ class IdGodOrderer:
 
                     # Ensure we're on cart/checkout to read totals
                     if CART_URL not in page.url:
+                        if self.ui:
+                            self.ui.step(f"Navigating to cart")
                         await page.goto(CART_URL, wait_until="domcontentloaded")
                         await page.wait_for_timeout(2000)
 
                     await self._write_debug_dump(page, "cart-before-checkout")
-                    checkout_completed = False
-                    checkout_message = ""
-                    checkout_fields: list[str] = []
-                    checkout_missing: list[str] = []
-                    discount_applied = False
-                    discount_msg = ""
+                    fill_meta = CheckoutFillMeta(completed=False, message="", filled=[], missing=[])
                     if self.checkout:
-                        checkout_completed, checkout_message, checkout_fields, checkout_missing = (
-                            await self._fill_checkout(page)
-                        )
-                        discount_applied = "coupon" in checkout_fields
+                        fill_meta = await self._fill_checkout(page)
+                        discount_applied = "coupon" in fill_meta.filled
                         discount_msg = (
                             f"Coupon '{self.discount_code}' saved with UPDATE"
                             if discount_applied
-                            else f"Coupon not applied"
+                            else "Coupon not applied"
                         )
                         await page.wait_for_load_state("domcontentloaded")
                         await page.wait_for_timeout(1000)
                         await self._write_debug_dump(page, "cart-after-checkout")
                     else:
                         discount_applied, discount_msg = await self._apply_discount(page)
+                        fill_meta.total_before_discount, _ = await self._read_totals(page)
+                        fill_meta.total_after_discount = fill_meta.total_before_discount
+
                     total, cart_count = await self._read_totals(page)
+                    if fill_meta.total_after_discount is None:
+                        fill_meta.total_after_discount = total
+                    if fill_meta.total_before_discount is None:
+                        fill_meta.total_before_discount = total
+
+                    savings = None
+                    if (
+                        fill_meta.total_before_discount is not None
+                        and fill_meta.total_after_discount is not None
+                    ):
+                        savings = round(fill_meta.total_before_discount - fill_meta.total_after_discount, 2)
+                        if savings <= 0:
+                            savings = None
+
                     payment_url = page.url
+                    payment_details = PaymentDetails(invoice_url=payment_url)
+                    if self.fetch_payment and fill_meta.completed:
+                        if self.ui:
+                            self.ui.phase("Payment")
+                            self.ui.step("Fetching BTCPay invoice…")
+                        payment_details = await fetch_btcpay_from_page(
+                            page, timeout_ms=self.timeout_ms
+                        )
+                        if payment_details.invoice_url and not payment_url.startswith(
+                            "https://btcpay"
+                        ):
+                            payment_url = payment_details.invoice_url or payment_url
+                        if self.ui and payment_details.populated:
+                            self.ui.ok(f"Invoice {payment_details.invoice_id or payment_url}")
+
                     body_text = await page.inner_text("body")
-                    pay_lines = [
-                        ln.strip()
-                        for ln in body_text.splitlines()
-                        if re.search(r"pay|bitcoin|litecoin|wallet|email|order|total", ln, re.I)
-                        and 5 < len(ln.strip()) < 200
-                    ][:12]
+                    if payment_details.populated:
+                        pay_lines = payment_details.summary_lines()
+                    else:
+                        pay_lines = [
+                            ln.strip()
+                            for ln in body_text.splitlines()
+                            if re.search(
+                                r"pay|bitcoin|litecoin|wallet|email|order|total", ln, re.I
+                            )
+                            and 5 < len(ln.strip()) < 200
+                        ][:12]
 
                     submitted = [r.person.display_name for r in results if r.success]
                     price_per = (total / len(submitted)) if total and submitted else None
+                    elapsed_ms = int((time.time() - run_started) * 1000)
+                    timings["total_ms"] = elapsed_ms
+                    if fill_meta.captcha_solve_time_ms:
+                        timings["captcha_ms"] = fill_meta.captcha_solve_time_ms
 
-                    return CheckoutResult(
-                        success=True,
+                    tor_mode = self._tor_mgr.mode if self.use_tor else ""
+
+                    result = CheckoutResult(
+                        success=all(r.success for r in results)
+                        and (not self.checkout_submit or fill_meta.completed),
                         message=discount_msg if discount_applied else "Order submitted to cart/checkout",
                         submitted_ids=submitted,
                         payment_url=payment_url,
                         payment_info="\n".join(pay_lines),
-                        total_price=total,
+                        payment_details=payment_details if payment_details.populated else None,
+                        total_price=fill_meta.total_after_discount or total,
+                        total_before_discount=fill_meta.total_before_discount,
+                        total_after_discount=fill_meta.total_after_discount or total,
+                        discount_savings=savings,
                         price_per_id=price_per,
                         discount_code=self.discount_code,
                         discount_applied=discount_applied,
@@ -648,12 +1053,33 @@ class IdGodOrderer:
                         proxy_used=proxy.display if proxy else "direct",
                         probe_results=self._probe_results,
                         checkout_attempted=self.checkout,
-                        checkout_completed=checkout_completed,
-                        checkout_message=checkout_message,
-                        checkout_fields=checkout_fields,
-                        checkout_missing_fields=checkout_missing,
+                        checkout_completed=fill_meta.completed,
+                        checkout_message=fill_meta.message,
+                        checkout_fields=fill_meta.filled,
+                        checkout_missing_fields=fill_meta.missing,
+                        captcha_solver=fill_meta.captcha_solver,
+                        captcha_solved=fill_meta.captcha_solved,
+                        captcha_solve_time_ms=fill_meta.captcha_solve_time_ms,
+                        captcha_attempts_used=fill_meta.captcha_attempts_used,
+                        elapsed_ms=elapsed_ms,
+                        tor_mode=tor_mode,
+                        input_file=self.input_file,
+                        timings=timings,
                         shipping=self.shipping if self.checkout else None,
+                        events=self.ui.events if self.ui else [],
                     )
+
+                    if self.use_cache and not self.dry_run:
+                        cache = OrderCache(self.cache_dir)
+                        result.cache_path = str(cache.save(result.to_dict()))
+
+                    if self.ui:
+                        if result.success:
+                            self.ui.ok("Done")
+                        else:
+                            self.ui.fail("Run finished with errors")
+
+                    return result
                 except Exception as e:
                     return CheckoutResult(
                         success=False,

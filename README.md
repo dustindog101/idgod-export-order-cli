@@ -25,7 +25,30 @@ This will:
 3. Set payment to Bitcoin, shipping to standard $20
 4. Apply coupon `hartlr` and click UPDATE
 
-**Manual step:** Open cart in browser (`--headed`), solve captcha, click **FINISH ORDER**.
+### Finish order (captcha)
+
+The cart uses **django-simple-captcha** (simple image text). For automated FINISH ORDER:
+
+```bash
+# Local OCR (ppllocr, ~67MB wheel) — recommended
+.venv/bin/pip install -e '.[captcha]'
+
+./idgod-order order --file orders.xlsx \
+  --proxy-file proxies/webshare.txt \
+  --checkout --checkout-submit \
+  --email you@proton.me \
+  --captcha-solver ppllocr \
+  -y --json
+```
+
+Or use **2captcha** (paid API, no local models):
+
+```bash
+export TWOCAPTCHA_API_KEY=your_key
+./idgod-order order ... --checkout --checkout-submit --captcha-solver 2captcha
+```
+
+**Manual fallback:** `--captcha-solver manual --headed` — solve captcha in the browser yourself.
 
 ## Install
 
@@ -33,6 +56,8 @@ This will:
 cd ~/Projects/idgod-order-cli
 python3 -m venv .venv
 .venv/bin/pip install -e .
+# Optional: local captcha solver (ppllocr + onnxruntime)
+.venv/bin/pip install -e '.[captcha]'
 # Uses system Chrome if bundled Chromium mismatches your arch
 ```
 
@@ -98,7 +123,65 @@ Optional selectors:
 - `--checkout-submit` clicks the checkout/continue button after filling fields. It does not submit payment.
 - `--debug-dir ./debug-checkout` writes cart/checkout HTML plus form control metadata for troubleshooting.
 
-## What the site asks for
+## Input modes
+
+See [docs/XLSX-COLUMNS.md](docs/XLSX-COLUMNS.md) for full column mapping.
+
+| Mode | Command |
+|------|---------|
+| **Multi-person file** | Each row = one ID (different names, DOB, photos, Seattle addresses) |
+| **Shared checkout** | `Shipping` column → one Oakland address at cart checkout + `--email` |
+| **Single person** | `--first-name` … `--zip` flags (no file) |
+| **Limit rows** | `--limit 2` |
+
+```bash
+./idgod-order order orders.xlsx --checkout --email you@proton.me -v --json
+```
+
+## Cache, verbose output, totals
+
+```bash
+# Save every run to ~/.cache/idgod-order-cli/orders/
+./idgod-order order ... --json
+
+# List past runs (payment URLs, totals)
+./idgod-order cache list
+
+# Detailed CLI: per-person fields, captcha solve time, before/after coupon totals
+./idgod-order order ... -v
+```
+
+JSON includes: `total_before_discount`, `total_after_discount`, `discount_savings`, `captcha_solve_time_ms`, `elapsed_ms`, `cache_path`, `timings`.
+
+### BTCPay invoice details (`--fetch-payment`)
+
+Use with `--checkout-submit` to scrape the BTCPay page (BTC amount, address, fiat total):
+
+```bash
+./idgod-order order orders.xlsx --checkout --checkout-submit --fetch-payment -v --json
+```
+
+## Tests
+
+```bash
+pip install -e '.[dev]'
+pytest tests/ -m "not integration" -v    # fast unit tests
+pytest tests/ -v                         # includes Tor probe (needs Tor on :9050)
+```
+
+See [docs/TESTING.md](docs/TESTING.md).
+
+## Tor (`--tor`)
+
+Priority: existing system Tor (`:9050` / `:9150`) → spawn `tor` binary (minimal temp dir, cleaned up on exit) → embedded torpy (last resort).
+
+Tor is **stopped and temp data removed** when the command finishes. Prefer `brew services start tor` to reuse one daemon instead of spawning per run.
+
+```bash
+./idgod-order probe --tor --method httpx --json
+./idgod-order order orders.xlsx --tor --checkout --email you@proton.me -y
+```
+
 
 | Field | Required | From your export |
 |-------|----------|------------------|

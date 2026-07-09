@@ -7,6 +7,7 @@ import json
 import sys
 from pathlib import Path
 
+from .cache import OrderCache, default_cache_dir
 from .models import Person, ShippingInfo
 from .orderer import IdGodOrderer, DEFAULT_DISCOUNT, ORDER_URL
 from .parser import extract_shipping_text, parse_file, parse_shipping_text, person_from_flags
@@ -18,99 +19,143 @@ from .proxies import (
     test_proxy_httpx,
     test_proxy_playwright,
 )
+from .ui import RunUI, format_result_human
 
 
 def _add_proxy_args(p: argparse.ArgumentParser) -> None:
-    p.add_argument(
+    g = p.add_argument_group("connection (use --tor or --proxy)")
+    g.add_argument(
         "--proxy",
         action="append",
         default=[],
         metavar="HOST:PORT[:USER:PASS]",
-        help="Proxy (repeatable). Formats: host:port or host:port:user:pass or http://user:pass@host:port",
+        help="HTTP proxy (repeatable). host:port or host:port:user:pass",
     )
-    p.add_argument("--proxy-file", help="File with one proxy per line")
-    p.add_argument("--tor", action="store_true", help="Route via Tor (system tor, tor binary, or embedded torpy)")
-    p.add_argument(
-        "--no-auto-proxy",
+    g.add_argument("--proxy-file", help="File with one proxy per line (uses first line)")
+    g.add_argument(
+        "--tor",
         action="store_true",
-        help="Use first proxy only; do not failover across list",
+        help="Route via Tor (:9050 / :9150, or spawn tor)",
     )
-
-
-def _collect_proxies(args: argparse.Namespace) -> list[ProxyConfig]:
-    proxies: list[ProxyConfig] = []
-    for item in args.proxy:
-        proxies.append(parse_proxy_line(item))
-    if args.proxy_file:
-        proxies.extend(load_proxies_from_file(Path(args.proxy_file)))
-    return proxies
 
 
 def _add_person_args(p: argparse.ArgumentParser) -> None:
-    p.add_argument("file", nargs="?", help="CSV, XLSX, or JSON export file")
-    p.add_argument("--file", "-f", dest="file_flag", help="Input file (alternative to positional)")
-    p.add_argument("--json", action="store_true", help="Output machine-readable JSON")
-    p.add_argument("--dry-run", action="store_true", help="Validate and plan without submitting")
-    p.add_argument("--headed", action="store_true", help="Show browser window")
-    p.add_argument("--yes", "-y", action="store_true", help="Skip confirmation prompt")
-    p.add_argument("--discount", default=DEFAULT_DISCOUNT, help=f"Discount code (default: {DEFAULT_DISCOUNT})")
-    p.add_argument("--cheapest-state", action="store_true", help="Auto-pick cheapest state variant")
-    p.add_argument(
+    p.add_argument("file", nargs="?", help="CSV, XLSX, or JSON export")
+    p.add_argument("--file", "-f", dest="file_flag", help="Input file")
+
+    req = p.add_argument_group("required for a real order")
+    req.add_argument("--email", default="", help="Checkout email (payment instructions sent here)")
+    req.add_argument(
+        "--fallback-photo",
+        default="",
+        help="Local photo if export URL is dead",
+    )
+    req.add_argument(
+        "--fallback-signature",
+        default="",
+        help="Local signature if export URL is dead",
+    )
+
+    ov = p.add_argument_group("overrides")
+    ov.add_argument("--limit", type=int, default=0, help="Max rows from file (0 = all)")
+    ov.add_argument("--discount", default=DEFAULT_DISCOUNT, help=f"Coupon code (default: {DEFAULT_DISCOUNT})")
+    ov.add_argument(
         "--state-variant",
         action="append",
         default=[],
-        metavar="STATE=VARIANT",
-        help='Force variant, e.g. --state-variant "Washington=Washington"',
+        metavar="STATE=LABEL",
+        help='ID type on order form when ambiguous, e.g. "Washington=Washington"',
     )
-    p.add_argument("--fallback-photo", default="", help="Local image when export photo URL is dead")
-    p.add_argument("--fallback-signature", default="", help="Local signature when export URL is dead")
-    p.add_argument("--timeout", type=int, default=60, help="Page timeout seconds (default: 60)")
-    p.add_argument("--limit", type=int, default=0, help="Max people to submit from file (0=all)")
-    p.add_argument("--checkout", action="store_true", help="After cart submit, fill checkout email/shipping fields")
-    p.add_argument("--checkout-submit", action="store_true", help="Submit checkout form after filling it (does not pay)")
-    p.add_argument("--email", default="", help="Checkout email address")
-    p.add_argument("--shipping", default="", help='Checkout shipping line, e.g. "Name, Street, City, ST, ZIP, USA"')
-    p.add_argument("--shipping-name", default="", help="Override checkout recipient name")
-    p.add_argument("--shipping-street", default="", help="Override checkout street address")
-    p.add_argument("--shipping-city", default="", help="Override checkout city")
-    p.add_argument("--shipping-state", default="", help="Override checkout state")
-    p.add_argument("--shipping-zip", default="", help="Override checkout ZIP/postal code")
-    p.add_argument("--shipping-country", default="", help="Override checkout country (default: USA)")
-    p.add_argument("--payment-method", default="", help="Checkout payment: Bitcoin, Litecoin, or card (default: Bitcoin when --checkout)")
-    p.add_argument("--shipping-method", default="", help="Shipping: standard ($20), express ($50), super ($120)")
-    p.add_argument("--debug-dir", default="", help="Write cart/checkout HTML and control metadata for troubleshooting")
-    p.add_argument("--first-name")
-    p.add_argument("--middle-name", default="")
-    p.add_argument("--last-name")
-    p.add_argument("--state")
-    p.add_argument("--dob")
-    p.add_argument("--issue-date", default="")
-    p.add_argument("--street", default="")
-    p.add_argument("--city")
-    p.add_argument("--zip")
-    p.add_argument("--sex", default="")
-    p.add_argument("--height", default="")
-    p.add_argument("--weight", default="")
-    p.add_argument("--eye-color", default="")
-    p.add_argument("--hair-color", default="")
-    p.add_argument("--photo", default="")
-    p.add_argument("--signature", default="")
+    ov.add_argument(
+        "--cheapest-state",
+        action="store_true",
+        help="Pick cheapest ID type when multiple match a state",
+    )
+    ov.add_argument("--payment-method", default="", help="Bitcoin (default), Litecoin, or card")
+    ov.add_argument(
+        "--shipping-method",
+        default="",
+        help="standard $20 (default), express $50, super $120",
+    )
+    ov.add_argument("--shipping", default="", help='Override cart shipping, e.g. "Name, St, City, ST, ZIP, USA"')
+    ov.add_argument("--shipping-name", default="")
+    ov.add_argument("--shipping-street", default="")
+    ov.add_argument("--shipping-city", default="")
+    ov.add_argument("--shipping-state", default="")
+    ov.add_argument("--shipping-zip", default="")
+    ov.add_argument("--shipping-country", default="")
+
+    adv = p.add_argument_group("advanced")
+    adv.add_argument("--dry-run", action="store_true", help="Parse file only; no browser")
+    adv.add_argument("--json", action="store_true", help="Machine-readable JSON (no live progress)")
+    adv.add_argument("--headed", action="store_true", help="Show browser window")
+    adv.add_argument("-y", "--yes", action="store_true", help="Skip confirmation (auto when piped)")
+    adv.add_argument("-v", "--verbose", action="store_true", help="Extra detail in final summary")
+    adv.add_argument("--timeout", type=int, default=60, help=argparse.SUPPRESS)
+    adv.add_argument("--no-cache", action="store_true", help="Do not save result JSON to cache")
+    adv.add_argument("--no-fetch-payment", action="store_true", help="Skip BTCPay invoice scrape")
+    adv.add_argument("--debug-dir", default="", help="Save cart/captcha HTML for debugging")
+    adv.add_argument("--cache-dir", default="", help=argparse.SUPPRESS)
+    adv.add_argument(
+        "--captcha-solver",
+        choices=["auto", "ppllocr", "ddddocr", "2captcha", "manual"],
+        default="auto",
+        help=argparse.SUPPRESS,
+    )
+    adv.add_argument("--captcha-attempts", type=int, default=10, help=argparse.SUPPRESS)
+    adv.add_argument("--2captcha-key", dest="twocaptcha_key", default="", help=argparse.SUPPRESS)
+
+    # Single-person mode (no file)
+    sp = p.add_argument_group("single person (instead of file)")
+    for dest, flag in (
+        ("first_name", "--first-name"),
+        ("last_name", "--last-name"),
+        ("state", "--state"),
+        ("dob", "--dob"),
+        ("city", "--city"),
+        ("zip", "--zip"),
+    ):
+        sp.add_argument(flag, dest=dest)
+    sp.add_argument("--middle-name", default="")
+    sp.add_argument("--issue-date", default="")
+    sp.add_argument("--street", default="")
+    sp.add_argument("--sex", default="")
+    sp.add_argument("--height", default="")
+    sp.add_argument("--weight", default="")
+    sp.add_argument("--eye-color", default="")
+    sp.add_argument("--hair-color", default="")
+    sp.add_argument("--photo", default="")
+    sp.add_argument("--signature", default="")
 
 
 def build_parser() -> argparse.ArgumentParser:
     root = argparse.ArgumentParser(
         prog="idgod-order",
-        description="Submit ID orders to idgod.ph from CSV/XLSX/JSON exports or CLI flags.",
+        description="Submit fake-ID orders to idgod.ph from a spreadsheet export.",
     )
     sub = root.add_subparsers(dest="command")
 
-    order_p = sub.add_parser("order", help="Submit order(s)", formatter_class=argparse.RawDescriptionHelpFormatter,
+    order_p = sub.add_parser(
+        "order",
+        help="Place order(s) end-to-end (ID forms → cart → checkout → BTCPay)",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
+Each spreadsheet row = one ID (name, DOB, Seattle address, photo, etc.).
+The Shipping column = one shared delivery address at checkout.
+Data comes from your export file; --email and --fallback-photo are the usual extras.
+
 Examples:
-  idgod-order order orders.xlsx --proxy-file proxies/webshare.txt --fallback-photo ~/Desktop/good.jpg
-  idgod-order order --tor --headed -y orders.xlsx --fallback-photo ~/Desktop/good.jpg
-  idgod-order order --proxy 31.56.127.193:7684:xupznkqu:nn697wqma9r6 --limit 1 -y --json
-""")
+  idgod-order order orders.xlsx --tor --email you@proton.me \\
+    --fallback-photo ~/Desktop/good.jpg
+
+  idgod-order order orders.xlsx --proxy-file proxies/webshare.txt \\
+    --email you@proton.me --fallback-photo ~/Desktop/good.jpg --limit 1
+
+  idgod-order order orders.xlsx --dry-run
+  idgod-order probe --tor
+  idgod-order cache list
+""",
+    )
     _add_person_args(order_p)
     _add_proxy_args(order_p)
 
@@ -121,9 +166,12 @@ Examples:
     probe_p.add_argument("--method", choices=["playwright", "httpx", "both"], default="both")
     _add_proxy_args(probe_p)
 
-    # backward compat: `idgod-order orders.xlsx` without subcommand
-    _add_person_args(root)
-    _add_proxy_args(root)
+    cache_p = sub.add_parser("cache", help="List past order results (not resumable sessions)")
+    cache_p.add_argument("cache_action", nargs="?", default="list", choices=["list"])
+    cache_p.add_argument("--limit", type=int, default=15)
+    cache_p.add_argument("--json", action="store_true")
+    cache_p.add_argument("--cache-dir", default="", help=argparse.SUPPRESS)
+
     return root
 
 
@@ -167,8 +215,9 @@ def _load_people(args: argparse.Namespace) -> list[Person]:
         })]
 
     raise SystemExit(
-        "Error: provide a file or required flags.\n"
-        "  idgod-order order orders.xlsx --proxy-file proxies/webshare.txt --fallback-photo ~/Desktop/good.jpg"
+        "Error: provide a spreadsheet file or single-person flags.\n"
+        "  idgod-order order orders.xlsx --tor --email you@proton.me "
+        "--fallback-photo ~/Desktop/good.jpg"
     )
 
 
@@ -200,38 +249,15 @@ def _load_shipping(args: argparse.Namespace, people: list[Person]) -> ShippingIn
     return shipping
 
 
-def _print_result(result, as_json: bool) -> None:
+def _print_result(result, as_json: bool, *, verbose: bool = False) -> None:
     if as_json:
         print(json.dumps(result.to_dict(), indent=2))
         return
+    print(format_result_human(result, verbose=verbose))
 
-    status = "SUCCESS" if result.success else "FAILED"
-    print(f"\n=== {status} ===")
-    print(result.message)
-    if result.proxy_used:
-        print(f"Proxy: {result.proxy_used}")
-    if result.submitted_ids:
-        print(f"Submitted: {', '.join(result.submitted_ids)}")
-    if result.total_price is not None:
-        print(f"Total: ${result.total_price:.2f}")
-    if result.price_per_id is not None:
-        print(f"Per ID: ${result.price_per_id:.2f}")
-    if result.payment_url:
-        print(f"Payment URL: {result.payment_url}")
-    if result.payment_info:
-        print(f"Payment info:\n{result.payment_info}")
-    if result.checkout_attempted:
-        print(f"Checkout: {result.checkout_message or 'attempted'}")
-        if result.checkout_fields:
-            print(f"Checkout fields filled: {', '.join(result.checkout_fields)}")
-        if result.checkout_missing_fields:
-            print(f"Checkout fields missing: {', '.join(result.checkout_missing_fields)}")
-    if result.discount_code:
-        applied = "yes" if result.discount_applied else "no"
-        print(f"Discount '{result.discount_code}' applied: {applied}")
-    for o in result.order_results:
-        mark = "ok" if o.success else "FAIL"
-        print(f"  [{mark}] {o.person.display_name} ({o.state_selected or o.person.state}): {o.message}")
+
+def _should_skip_confirm(args: argparse.Namespace) -> bool:
+    return bool(args.yes or args.dry_run or not sys.stdin.isatty())
 
 
 async def _cmd_probe(args: argparse.Namespace) -> int:
@@ -248,7 +274,6 @@ async def _cmd_probe(args: argparse.Namespace) -> int:
         else:
             proxies = _collect_proxies(args)
             if not proxies:
-                # default to bundled webshare list
                 default_file = Path(__file__).resolve().parent.parent / "proxies" / "webshare.txt"
                 if default_file.exists():
                     proxies = load_proxies_from_file(default_file)
@@ -274,8 +299,6 @@ async def _cmd_probe(args: argparse.Namespace) -> int:
                 line += f" status={r['status']}"
             if r.get("title"):
                 line += f" title={r['title'][:60]!r}"
-            if r.get("form_fields") is not None:
-                line += f" fields={r['form_fields']}"
             if r.get("error"):
                 line += f" error={r['error']}"
             line += f" ({r.get('elapsed_ms', '?')}ms)"
@@ -284,23 +307,60 @@ async def _cmd_probe(args: argparse.Namespace) -> int:
     return 0 if any(r.get("ok") for r in results) else 1
 
 
+def _collect_proxies(args: argparse.Namespace) -> list[ProxyConfig]:
+    proxies: list[ProxyConfig] = []
+    for item in args.proxy:
+        proxies.append(parse_proxy_line(item))
+    if args.proxy_file:
+        proxies.extend(load_proxies_from_file(Path(args.proxy_file)))
+    # Use only the first proxy from a file — use `probe` to test others
+    if len(proxies) > 1 and args.proxy_file and not args.proxy:
+        proxies = proxies[:1]
+    return proxies
+
+
+async def _cmd_cache(args: argparse.Namespace) -> int:
+    cache = OrderCache(args.cache_dir)
+    entries = cache.list_entries(limit=args.limit)
+    if args.json:
+        print(json.dumps({"cache_dir": str(cache.root), "entries": entries}, indent=2))
+        return 0
+    print(f"Past orders (read-only log): {cache.root}\n")
+    if not entries:
+        print("(empty)")
+        return 0
+    for e in entries:
+        ids = ", ".join(e.get("submitted_ids", [])[:3])
+        total = e.get("total_after_discount")
+        total_s = f"${total:.2f}" if total is not None else "?"
+        ok = "✓" if e.get("success") else "✗"
+        print(f"{ok}  {e.get('saved_at', '?')}  {ids}  {total_s}")
+        if e.get("payment_url"):
+            print(f"    {e['payment_url']}")
+    return 0
+
+
 async def _cmd_order(args: argparse.Namespace) -> int:
     people = _load_people(args)
-    if args.checkout and not args.payment_method:
-        args.payment_method = "Bitcoin"
-    shipping = _load_shipping(args, people) if args.checkout else ShippingInfo()
+    full_order = not args.dry_run
 
-    if not args.yes and not args.dry_run:
+    if full_order and not args.payment_method:
+        args.payment_method = "Bitcoin"
+
+    shipping = _load_shipping(args, people) if full_order else ShippingInfo()
+
+    if full_order and not shipping.email:
+        raise SystemExit(
+            "Error: --email is required for checkout (payment instructions are sent there).\n"
+            "  idgod-order order orders.xlsx --tor --email you@proton.me ..."
+        )
+
+    if not _should_skip_confirm(args):
         names = ", ".join(p.display_name for p in people)
-        print(f"About to submit {len(people)} ID(s) to idgod.ph: {names}")
-        print(f"Discount code: {args.discount}")
-        if args.tor:
-            print("Routing: Tor")
-        elif args.proxy or args.proxy_file:
-            print(f"Routing: proxy ({len(_collect_proxies(args))} configured)")
-        if args.checkout:
-            print(f"Checkout email: {shipping.email or '(missing)'}")
-            print(f"Shipping: {shipping.raw or shipping.street or '(missing)'}")
+        print(f"Submit {len(people)} ID(s) to idgod.ph: {names}")
+        print(f"Coupon: {args.discount} · Email: {shipping.email}")
+        routing = "Tor" if args.tor else ("proxy" if (args.proxy or args.proxy_file) else "direct")
+        print(f"Route: {routing}")
         try:
             ans = input("Continue? [y/N] ").strip().lower()
         except EOFError:
@@ -308,6 +368,14 @@ async def _cmd_order(args: argparse.Namespace) -> int:
         if ans not in ("y", "yes"):
             print("Aborted.")
             return 1
+
+    path_str = args.file_flag or args.file or ""
+    ui = RunUI(json_mode=args.json)
+    routing = "Tor" if args.tor else (
+        f"proxy" if (args.proxy or args.proxy_file) else "direct"
+    )
+    if full_order:
+        ui.banner(ids=len(people), routing=routing, modes=["checkout", "submit", "payment"])
 
     orderer = IdGodOrderer(
         headless=not args.headed,
@@ -320,33 +388,44 @@ async def _cmd_order(args: argparse.Namespace) -> int:
         timeout_ms=args.timeout * 1000,
         proxies=_collect_proxies(args),
         use_tor=args.tor,
-        auto_proxy=not args.no_auto_proxy,
-        checkout=args.checkout,
-        checkout_submit=args.checkout_submit,
+        auto_proxy=False,
+        checkout=full_order,
+        checkout_submit=full_order,
+        captcha_solver=args.captcha_solver,
+        twocaptcha_key=args.twocaptcha_key,
+        captcha_attempts=args.captcha_attempts,
         shipping=shipping,
         payment_method=args.payment_method,
         shipping_method=args.shipping_method,
         debug_dir=args.debug_dir,
+        input_file=str(path_str) if path_str else "",
+        cache_dir=args.cache_dir,
+        use_cache=not args.no_cache,
+        fetch_payment=full_order and not args.no_fetch_payment,
+        ui=ui,
     )
 
     result = await orderer.submit(people)
-    _print_result(result, args.json)
+    _print_result(result, args.json, verbose=args.verbose)
     return 0 if result.success else 1
 
 
+_SUBCOMMANDS = frozenset({"order", "probe", "cache", "-h", "--help"})
+
+
 def main(argv: list[str] | None = None) -> int:
-    argv = argv if argv is not None else sys.argv[1:]
-    parser = build_parser()
-    # If first arg looks like a file, treat as `order` subcommand
-    if argv and not argv[0].startswith("-") and argv[0] not in ("order", "probe"):
+    argv = list(argv if argv is not None else sys.argv[1:])
+    if argv and argv[0] not in _SUBCOMMANDS:
         argv = ["order", *argv]
+    parser = build_parser()
     args = parser.parse_args(argv)
-    # Default subcommand when only root-level args used
     if not getattr(args, "command", None):
         args.command = "order"
 
     if args.command == "probe":
         return asyncio.run(_cmd_probe(args))
+    if args.command == "cache":
+        return asyncio.run(_cmd_cache(args))
     return asyncio.run(_cmd_order(args))
 
 

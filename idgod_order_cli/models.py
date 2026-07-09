@@ -152,13 +152,31 @@ class OrderResult:
 
 
 @dataclass
+class CheckoutFillMeta:
+    completed: bool
+    message: str
+    filled: list[str]
+    missing: list[str]
+    captcha_solver: str = ""
+    captcha_solved: bool = False
+    captcha_solve_time_ms: int = 0
+    captcha_attempts_used: int = 0
+    total_before_discount: float | None = None
+    total_after_discount: float | None = None
+
+
+@dataclass
 class CheckoutResult:
     success: bool
     message: str = ""
     submitted_ids: list[str] = field(default_factory=list)
     payment_url: str = ""
     payment_info: str = ""
+    payment_details: Any = None  # PaymentDetails | None; avoid circular import in type hints
     total_price: float | None = None
+    total_before_discount: float | None = None
+    total_after_discount: float | None = None
+    discount_savings: float | None = None
     price_per_id: float | None = None
     discount_code: str = ""
     discount_applied: bool = False
@@ -172,7 +190,17 @@ class CheckoutResult:
     checkout_message: str = ""
     checkout_fields: list[str] = field(default_factory=list)
     checkout_missing_fields: list[str] = field(default_factory=list)
+    captcha_solver: str = ""
+    captcha_solved: bool = False
+    captcha_solve_time_ms: int = 0
+    captcha_attempts_used: int = 0
+    elapsed_ms: int = 0
+    tor_mode: str = ""
+    input_file: str = ""
+    cache_path: str = ""
+    timings: dict[str, int] = field(default_factory=dict)
     shipping: ShippingInfo | None = None
+    events: list[dict[str, Any]] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -181,7 +209,15 @@ class CheckoutResult:
             "submitted_ids": self.submitted_ids,
             "payment_url": self.payment_url,
             "payment_info": self.payment_info,
+            "payment_details": (
+                self.payment_details.to_dict()
+                if self.payment_details is not None and hasattr(self.payment_details, "to_dict")
+                else None
+            ),
             "total_price": self.total_price,
+            "total_before_discount": self.total_before_discount,
+            "total_after_discount": self.total_after_discount,
+            "discount_savings": self.discount_savings,
             "price_per_id": self.price_per_id,
             "discount_code": self.discount_code,
             "discount_applied": self.discount_applied,
@@ -194,6 +230,22 @@ class CheckoutResult:
             "checkout_message": self.checkout_message,
             "checkout_fields": self.checkout_fields,
             "checkout_missing_fields": self.checkout_missing_fields,
+            "captcha": {
+                "solver": self.captcha_solver,
+                "solved": self.captcha_solved,
+                "solve_time_ms": self.captcha_solve_time_ms,
+                "attempts_used": self.captcha_attempts_used,
+            },
+            "captcha_solver": self.captcha_solver,
+            "captcha_solved": self.captcha_solved,
+            "captcha_solve_time_ms": self.captcha_solve_time_ms,
+            "captcha_attempts_used": self.captcha_attempts_used,
+            "elapsed_ms": self.elapsed_ms,
+            "tor_mode": self.tor_mode,
+            "input_file": self.input_file,
+            "cache_path": self.cache_path,
+            "timings": self.timings,
             "shipping": self.shipping.to_dict() if self.shipping else None,
             "orders": [o.to_dict() for o in self.order_results],
+            "events": self.events,
         }

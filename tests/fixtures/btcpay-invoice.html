@@ -1,0 +1,364 @@
+<!DOCTYPE html><html lang="en" class=""><head>
+    <meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BTCPay Invoice</title>
+<link href="/main/bootstrap/bootstrap.css?v=xA5bs9boeKDtToIPljUhTotEvXPwwGyGL38b-51Frq4" rel="stylesheet">
+<link href="/vendor/flatpickr/flatpickr.css?v=aTEDpz7abtWGeUQOzwxEDvFBy2H0_-4YlhmGHbTbU4Q" rel="stylesheet">
+<link href="/main/fonts/OpenSans.css?v=5or0eXX_npKCPPnU9xra_vLu1Z6CkpExoyK3FcrhT0E" rel="stylesheet">
+<link href="/main/layout.css?v=mZVJZc-lAcZE-pUcj-aXBEjuqhBLm6fI8EL-ST5llnk" rel="stylesheet">
+<link href="/main/site.css?v=kuv4TawwoE64onYR0GfAu7WeSdRysOcG1wH6q4pXSAE" rel="stylesheet">
+
+
+<script nonce="">
+    if (window.localStorage.getItem('btcpay-hide-sensitive-info') === 'true') { document.documentElement.setAttribute('data-hide-sensitive-info', 'true')}
+    if (window.location !== window.parent.location) { window.addEventListener('message', function(event) { try { const data = JSON.parse(event.data); if (data.context) { document.documentElement.setAttribute('data-context', data.context) } } catch {} }, false); }
+</script>
+    <link href="/main/themes/default.css?v=niXnkDTK2DxlcfZP0_JEWgzb0N7cTjcU4-I0nqNSl_4" rel="stylesheet">
+    <link href="/main/themes/default-dark.css?v=oZbmHsUytKCXWh1vLiI0kB1DUSGa_sUEx3N3CrIpY-0" rel="null" id="DarkThemeLinkTag">
+    <script src="/js/theme-switch.js?v=FD4J-7Hw_Q1BpQRNQrv3VMtgBJy9_rjJOQLjWsV03dQ"></script>
+    <noscript><style>.btcpay-theme-switch { display: none !important; }</style></noscript>
+
+
+    
+<noscript>
+    <style>
+        .hide-when-js { display: block !important; }
+        .only-for-js { display: none !important; }
+    </style>
+</noscript>
+
+    <meta name="robots" content="noindex,nofollow">
+    <link href="/checkout/checkout.css?v=LplPvMMf775iQe9a3uUUnjRKqyk0j-_sQmJoG84AlH8" rel="stylesheet">
+</head>
+<body class="min-vh-100">
+    <div id="Checkout" class="public-page-wrap"><header class="store-header"><h1 class="store-name">idgod</h1></header> <main class="tile"><!----> <section id="payment"><div class="fw-semibold text-center text-break text-muted mb-3">YOU MUST PAY THE EXACT AMOUNT OF COINS ASKED FOR ON THIS TIMER PAGE. A LITTLE OVER IS OK, BUT NOT LESS! Sending multiple payments to the same address is fine if by mistake you did not send enough the first time.</div> <div class="d-flex justify-content-center mt-1 text-center"><h2 id="AmountDue" data-clipboard="0.00135466" data-clipboard-hover="" data-amount-due="0.00135466" class="clipboard-button clipboard-button-hover">0.00135466 BTC</h2></div> <div id="PaymentInfo" class="info mt-3 mb-2 collapse show"><div><div class="timer"><span role="status" class="spinner-border spinner-border-sm"><span class="visually-hidden"></span></span> <span>This invoice will expire in</span> <span class="expiryTime">1799:55</span></div> <!----> <!----></div></div> <button id="DetailsToggle" type="button" aria-expanded="false" class="d-flex align-items-center gap-2 btn btn-link payment-details-button mb-2"><span class="fw-semibold">View Details</span> <svg role="img" class="icon icon-caret-down"><use href="/img/icon-sprite.svg?v=OUjl8Vm2HpnMcCtfml0Dwwz-hdXGqLGLfoTYYgOoYlc#caret-down"></use></svg></button> <div id="PaymentDetails" class="payment-details collapse"><dl class="pb-4"><div id="PaymentDetails-TotalPrice"><dt>Total Price</dt> <dd data-clipboard="0.00135365" data-clipboard-hover="start" class="clipboard-button clipboard-button-hover">0.00135365 BTC</dd></div> <div id="PaymentDetails-TotalFiat"><dt>Total Fiat</dt> <dd id="total_fiat" data-clipboard="$85.00" data-clipboard-hover="start" class="clipboard-button clipboard-button-hover">$85.00</dd></div> <!----> <div id="PaymentDetails-ExchangeRate"><dt>Exchange Rate</dt> <dd data-clipboard="$62,793.60" data-clipboard-hover="start" class="clipboard-button clipboard-button-hover">1 BTC = $62,793.60</dd></div> <div id="PaymentDetails-NetworkCost"><dt>Network Cost</dt> <dd data-clipboard="0.00000101" data-clipboard-hover="start" class="clipboard-button clipboard-button-hover"><div>1 transaction</div> <div>0.00000101 BTC</div></dd></div> <!----> <div id="PaymentDetails-AmountDue"><dt>Amount Due</dt> <dd data-clipboard="0.00135466" data-clipboard-hover="start" class="clipboard-button clipboard-button-hover">0.00135466 BTC</dd></div> <div id="PaymentDetails-RecommendedFee"><dt>Recommended Fee</dt> <dd data-clipboard="1.013" data-clipboard-hover="start" class="clipboard-button clipboard-button-hover">1.013 sat/byte</dd></div></dl></div> <div class="mt-3 mb-2 payment-methods-wrapper"><h6 class="text-center mb-3">Pay with</h6> <div class="btcpay-pills d-flex flex-wrap align-items-center justify-content-center gap-2 pb-2"><a href="/i/TCr53ZRiMzJT2JwSrLfnkQ" class="btcpay-pill m-0 payment-method active">Bitcoin</a></div></div> <div class="payment-box"><div data-qr-value="bitcoin:BC1Q875XRH4NUL6F83KWHXRY7M0D68K9XV2V9P6HZ2?amount=0.00135466" data-clipboard="bitcoin:bc1q875xrh4nul6f83kwhxry7m0d68k9xv2v9p6hz2?amount=0.00135466" data-clipboard-confirm-element="#Address_BTC-CHAIN [data-clipboard]" class="qr-container clipboard-button"><div><div><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 33 33" shape-rendering="crispEdges"><path fill="#ffffff" d="M0 0h33v33H0z"></path><path stroke="#000000" d="M0 0.5h7m1 0h2m1 0h1m1 0h3m1 0h1m1 0h4m1 0h1m1 0h7M0 1.5h1m5 0h1m1 0h4m1 0h4m2 0h1m2 0h3m1 0h1m5 0h1M0 2.5h1m1 0h3m1 0h1m1 0h1m1 0h5m1 0h1m7 0h1m1 0h1m1 0h3m1 0h1M0 3.5h1m1 0h3m1 0h1m3 0h1m1 0h1m1 0h1m1 0h2m1 0h5m2 0h1m1 0h3m1 0h1M0 4.5h1m1 0h3m1 0h1m1 0h1m1 0h2m1 0h1m1 0h4m1 0h4m2 0h1m1 0h3m1 0h1M0 5.5h1m5 0h1m2 0h1m3 0h1m1 0h2m1 0h1m3 0h1m3 0h1m5 0h1M0 6.5h7m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h7M15 7.5h2m2 0h2M0 8.5h1m2 0h7m1 0h1m2 0h1m2 0h1m1 0h1m1 0h1m1 0h3m2 0h1m1 0h3M0 9.5h1m1 0h1m4 0h3m1 0h4m1 0h1m2 0h3m1 0h1m4 0h1m2 0h1M0 10.5h3m1 0h4m4 0h2m4 0h4m1 0h2m1 0h3m1 0h1M0 11.5h2m2 0h1m4 0h3m1 0h1m4 0h2m1 0h1m2 0h1m2 0h1m2 0h1m1 0h1M1 12.5h2m2 0h2m1 0h2m2 0h2m3 0h2m1 0h2m1 0h1m1 0h2m1 0h1M2 13.5h2m3 0h1m1 0h2m1 0h1m1 0h1m3 0h8m2 0h4M0 14.5h2m1 0h2m1 0h1m1 0h3m1 0h4m1 0h1m5 0h1m1 0h1m1 0h4M4 15.5h2m1 0h2m3 0h1m1 0h1m1 0h3m1 0h3m2 0h2m1 0h2M0 16.5h2m3 0h2m1 0h1m2 0h1m1 0h1m1 0h3m3 0h1m1 0h1m1 0h4m3 0h1M0 17.5h1m2 0h3m2 0h1m1 0h1m3 0h6m2 0h1m1 0h2m1 0h2m1 0h1m1 0h1M3 18.5h5m1 0h2m1 0h3m2 0h1m3 0h2m2 0h1m2 0h4M0 19.5h6m1 0h2m5 0h3m1 0h2m1 0h1m1 0h4m1 0h4M0 20.5h3m1 0h3m1 0h5m2 0h2m1 0h1m7 0h3M0 21.5h1m2 0h2m2 0h2m2 0h1m6 0h1m4 0h3m2 0h1m1 0h1M0 22.5h1m2 0h1m2 0h3m11 0h1m1 0h1m2 0h1m1 0h3m1 0h2M0 23.5h1m1 0h3m2 0h2m1 0h2m1 0h1m1 0h1m2 0h1m3 0h2m1 0h2m1 0h5M0 24.5h3m1 0h4m1 0h3m9 0h8m3 0h1M8 25.5h3m1 0h1m4 0h1m1 0h1m4 0h1m3 0h1m1 0h1M0 26.5h7m1 0h2m1 0h1m1 0h1m1 0h3m1 0h1m1 0h1m2 0h1m1 0h1m1 0h2m1 0h2M0 27.5h1m5 0h1m1 0h1m5 0h1m1 0h9m3 0h5M0 28.5h1m1 0h3m1 0h1m1 0h1m2 0h1m3 0h3m1 0h1m1 0h9m2 0h1M0 29.5h1m1 0h3m1 0h1m1 0h2m2 0h3m1 0h4m2 0h1m2 0h2m3 0h1M0 30.5h1m1 0h3m1 0h1m2 0h2m1 0h2m1 0h1m1 0h1m2 0h1m1 0h1m1 0h3m1 0h1m1 0h3M0 31.5h1m5 0h1m3 0h4m4 0h3m1 0h1m1 0h1m2 0h2m2 0h2M0 32.5h7m1 0h1m6 0h3m1 0h1m1 0h2m6 0h1"></path></svg>
+</div></div> <img src="/imlegacy/bitcoin.svg" alt="Bitcoin" class="qr-icon"></div> <div class="input-group mt-3"><div id="Address_BTC-CHAIN" class="form-floating"><span data-text="bc1q875xrh4nul6f83kwhxry7m0d68k9xv2v9p6hz2" class="truncate-center form-control-plaintext truncate-center--copy truncate-center--elastic"><span data-bs-toggle="tooltip" title="bc1q875xrh4nul6f83kwhxry7m0d68k9xv2v9p6hz2" class="truncate-center-truncated"><span class="truncate-center-start">bc1q875xrh4nul6f83kwhxry7m0</span> <span class="truncate-center-end">d68k9xv2v9p6hz2</span></span> <span class="truncate-center-text">bc1q875xrh4nul6f83kwhxry7m0d68k9xv2v9p6hz2</span> <button type="button" data-clipboard="bc1q875xrh4nul6f83kwhxry7m0d68k9xv2v9p6hz2" class="btn btn-link p-0 clipboard-button"><svg role="img" class="icon icon-actions-copy"><use href="/img/icon-sprite.svg?v=OUjl8Vm2HpnMcCtfml0Dwwz-hdXGqLGLfoTYYgOoYlc#actions-copy"></use></svg></button></span> <label>Address</label></div></div> <!----> <a id="PayInWallet" target="_blank" href="bitcoin:bc1q875xrh4nul6f83kwhxry7m0d68k9xv2v9p6hz2?amount=0.00135466" title="BIP21 payment link" class="btn btn-primary rounded-pill w-100 mt-4">Pay in wallet</a> <!----></div></section></main> <footer class="store-footer"><!----> <a href="https://btcpayserver.org" target="_blank" rel="noreferrer noopener" class="store-powered-by">
+                Powered by <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 192 84" role="img" alt="BTCPay Server"><path d="M5.206 83.433a4.86 4.86 0 01-4.859-4.861V5.431a4.86 4.86 0 119.719 0v73.141a4.861 4.861 0 01-4.86 4.861" fill="currentColor" class="logo-brand-light"></path><path d="M5.209 83.433a4.862 4.862 0 01-2.086-9.253L32.43 60.274 2.323 38.093a4.861 4.861 0 015.766-7.826l36.647 26.999a4.864 4.864 0 01-.799 8.306L7.289 82.964a4.866 4.866 0 01-2.08.469" fill="currentColor" class="logo-brand-medium"></path><path d="M5.211 54.684a4.86 4.86 0 01-2.887-8.774L32.43 23.73 3.123 9.821a4.861 4.861 0 014.166-8.784l36.648 17.394a4.86 4.86 0 01.799 8.305l-36.647 27a4.844 4.844 0 01-2.878.948" fill="currentColor" class="logo-brand-light"></path><path d="M10.066 31.725v20.553L24.01 42.006z" fill="currentColor" class="logo-brand-dark"></path><path d="M10.066 5.431A4.861 4.861 0 005.206.57 4.86 4.86 0 00.347 5.431v61.165h9.72V5.431h-.001z" fill="currentColor" class="logo-brand-light"></path><path d="M74.355 41.412c3.114.884 4.84 3.704 4.84 7.238 0 5.513-3.368 8.082-7.955 8.082H60.761V27.271h9.259c4.504 0 7.997 2.146 7.997 7.743 0 2.821-1.179 5.43-3.662 6.398m-4.293-.716c3.324 0 6.018-1.179 6.018-5.724 0-4.586-2.776-5.808-6.145-5.808h-7.197v11.531h7.324v.001zm1.052 14.099c3.366 0 6.06-1.768 6.06-6.145 0-4.713-3.072-6.144-6.901-6.144h-7.534v12.288h8.375v.001zM98.893 27.271v1.81h-8.122v27.651h-1.979V29.081h-8.123v-1.81zM112.738 26.85c5.01 0 9.554 2.524 10.987 8.543h-1.895c-1.348-4.923-5.303-6.732-9.134-6.732-6.944 0-10.605 5.681-10.605 13.341 0 8.08 3.661 13.256 10.646 13.256 4.125 0 7.828-1.85 9.26-7.279h1.895c-1.264 6.271-6.229 9.174-11.154 9.174-7.87 0-12.583-5.808-12.583-15.15 0-8.966 4.969-15.153 12.583-15.153M138.709 27.271c5.091 0 8.795 3.326 8.795 9.764 0 6.06-3.704 9.722-8.795 9.722h-7.746v9.976h-1.935V27.271h9.681zm0 17.549c3.745 0 6.816-2.397 6.816-7.827 0-5.429-2.947-7.869-6.816-7.869h-7.746V44.82h7.746zM147.841 56.732v-.255l11.741-29.29h.885l11.615 29.29v.255h-2.062l-3.322-8.501H153.27l-3.324 8.501h-2.105zm12.164-26.052l-6.059 15.697h12.078l-6.019-15.697zM189.551 27.271h2.104v.293l-9.176 16.92v12.248h-2.02V44.484l-9.216-16.961v-.252h2.147l3.997 7.492 4.043 7.786h.04l4.081-7.786z" fill="currentColor" class="logo-brand-text"></path></svg></a> <select id="DefaultLang" name="DefaultLang" class="form-select" style="--text-width: 45px;"><option value="az">Azərbaycanca</option> <option value="id">Bahasa Indonesia</option> <option value="bs-BA">Bosanski</option> <option value="ca-ES">Català</option> <option value="cs-CZ">Česky</option> <option value="da-DK">Dansk</option> <option value="de-DE">Deutsch</option> <option selected="selected" value="en">English</option> <option value="es-ES">Español</option> <option value="fr-FR">Français</option> <option value="hr-HR">Hrvatski</option> <option value="is-IS">Íslenska</option> <option value="it-IT">Italiano</option> <option value="lv">Latviešu</option> <option value="hu-HU">Magyar</option> <option value="nl-NL">Nederlands</option> <option value="no">Norsk</option> <option value="pl">Polski</option> <option value="pt-BR">Português (Brasil)</option> <option value="pt-PT">Portuguese</option> <option value="ro">Română</option> <option value="sk-SK">Slovenčina</option> <option value="sl-SI">Slovenščina</option> <option value="sr">Srpski</option> <option value="fi-FI">Suomi</option> <option value="sv">Svenska</option> <option value="vi-VN">Tiếng Việt</option> <option value="tr">Türkçe</option> <option value="zu">Zulu</option> <option value="el-GR">Ελληνικά</option> <option value="bg-BG">български</option> <option value="kk-KZ">қазақ</option> <option value="ru-RU">Русский</option> <option value="uk-UA">Українська</option> <option value="ka">ქართული</option> <option value="hy">Հայերեն</option> <option value="he">עברית</option> <option value="ar">العربية</option> <option value="fa">فارسی</option> <option value="am-ET">አማርኛ</option> <option value="np-NP">नेपाली</option> <option value="hi">हिंदी</option> <option value="th-TH">ไทย</option> <option value="ko">한국어</option> <option value="zh-SG">中文 (华语)</option> <option value="zh-TW">中文 (台語)</option> <option value="ja-JP">日本語</option> <option value="zh-SP">英文</option></select></footer></div>
+    <noscript>
+        <div class="p-5 text-center">
+            <h2>Javascript is currently disabled in your browser.</h2>
+            <h5>Please enable Javascript and refresh this page for the best experience.</h5>
+            <p>
+                Alternatively, click below to continue to our
+                <a href="/UIInvoice/checkoutnoscript?invoiceId=TCr53ZRiMzJT2JwSrLfnkQ">HTML-only invoice</a>.
+            </p>
+        </div>
+    </noscript>
+<script type="text/x-template" id="payment-details">
+        <dl>
+            <div v-if="orderAmount > 0" id="PaymentDetails-TotalPrice" key="TotalPrice">
+                <dt v-t="'total_price'"></dt>
+                <dd class="clipboard-button clipboard-button-hover" :data-clipboard="asNumber(srvModel.orderAmount)" data-clipboard-hover="start">{{srvModel.orderAmount}} {{ srvModel.paymentMethodCurrency }}</dd>
+            </div>
+            <div v-if="orderAmount > 0 && srvModel.orderAmountFiat" id="PaymentDetails-TotalFiat" key="TotalFiat">
+                <dt v-t="'total_fiat'"></dt>
+                <dd id="total_fiat" class="clipboard-button clipboard-button-hover" :data-clipboard="srvModel.orderAmountFiat" data-clipboard-hover="start">{{srvModel.orderAmountFiat}}</dd>
+            </div>
+             <div v-if="srvModel.taxIncluded.value > 0 && srvModel.taxIncluded.formatted" id="PaymentDetails-TaxIncluded" key="TaxIncluded">
+                <dt v-t="'tax_included'"></dt>
+                <dd class="clipboard-button clipboard-button-hover" :data-clipboard="srvModel.taxIncluded.value" data-clipboard-hover="start">{{srvModel.taxIncluded.formatted}}</dd>
+            </div>
+            <div v-if="srvModel.rate && srvModel.paymentMethodCurrency" id="PaymentDetails-ExchangeRate" key="ExchangeRate">
+                <dt v-t="'exchange_rate'"></dt>
+                <dd class="clipboard-button clipboard-button-hover" :data-clipboard="srvModel.rate" data-clipboard-hover="start">
+                    <template v-if="srvModel.paymentMethodCurrency === 'sats'">1 sat = {{ srvModel.rate }}</template>
+                    <template v-else>1 {{ srvModel.paymentMethodCurrency }} = {{ srvModel.rate }}</template>
+                </dd>
+            </div>
+            <div v-if="srvModel.networkFee" id="PaymentDetails-NetworkCost" key="NetworkCost">
+                <dt v-t="'network_cost'"></dt>
+                <dd class="clipboard-button clipboard-button-hover" :data-clipboard="asNumber(srvModel.networkFee)" data-clipboard-hover="start">
+                    <div v-if="srvModel.txCountForFee > 0" v-t="{ path: 'tx_count', args: { count: srvModel.txCount } }"></div>
+                    <div v-text="`${srvModel.networkFee} ${srvModel.paymentMethodCurrency}`"></div>
+                </dd>
+            </div>
+            <div v-if="paid > 0" id="PaymentDetails-AmountPaid" key="AmountPaid">
+                <dt v-t="'amount_paid'"></dt>
+                <dd class="clipboard-button clipboard-button-hover" :data-clipboard="asNumber(srvModel.paid)" data-clipboard-hover="start" v-text="`${srvModel.paid} ${srvModel.paymentMethodCurrency}`"></dd>
+            </div>
+            <div v-if="due > 0" id="PaymentDetails-AmountDue" key="AmountDue">
+                <dt v-t="'amount_due'"></dt>
+                <dd class="clipboard-button clipboard-button-hover" :data-clipboard="asNumber(srvModel.due)" data-clipboard-hover="start" v-text="`${srvModel.due} ${srvModel.paymentMethodCurrency}`"></dd>
+            </div>
+            <div v-if="showRecommendedFee" id="PaymentDetails-RecommendedFee" key="RecommendedFee">
+                <dt v-t="'recommended_fee'"></dt>
+                <dd class="clipboard-button clipboard-button-hover" :data-clipboard="asNumber(srvModel.feeRate)" data-clipboard-hover="start" v-t="{ path: 'fee_rate', args: { feeRate: srvModel.feeRate } }"></dd>
+            </div>
+        </dl>
+    </script>
+    <script nonce="">
+        const checkoutBaseUrl = "/i/TCr53ZRiMzJT2JwSrLfnkQ";
+	    const i18nUrl = "/misc/translations/checkout/{{lng}}?v=2.3.4";
+        const statusUrl = "/invoice/status?invoiceId=TCr53ZRiMzJT2JwSrLfnkQ";
+        const statusWsUrl = "/invoice/status/ws?invoiceId=TCr53ZRiMzJT2JwSrLfnkQ";
+        const availableLanguages = ["es-ES","hu-HU","zh-SG","uk-UA","en","ca-ES","kk-KZ","hr-HR","sv","ko","de-DE","zh-TW","ja-JP","az","bg-BG","sr","pl","ru-RU","ka","no","pt-BR","tr","fi-FI","nl-NL","ro","zu","fa","sk-SK","lv","np-NP","id","is-IS","el-GR","da-DK","fr-FR","th-TH","ar","vi-VN","zh-SP","pt-PT","hi","he","sl-SI","hy","cs-CZ","bs-BA","am-ET","it-IT"];
+        const initialSrvModel = {"checkoutBodyComponentName":"BitcoinCheckoutBody","storeBranding":{"brandColor":null,"applyBrandColorToBackend":false,"logoUrl":null,"cssUrl":null},"paymentSoundUrl":null,"nfcReadSoundUrl":null,"errorSoundUrl":null,"brandColor":null,"htmlTitle":"BTCPay Invoice","defaultLang":"en","showPayInWalletButton":true,"showStoreHeader":true,"availablePaymentMethods":[{"paymentMethodId":"BTC-CHAIN","displayed":true,"paymentMethodName":"Bitcoin","order":0}],"isModal":false,"isUnsetTopUp":false,"onChainWithLnInvoiceFallback":false,"celebratePayment":true,"paymentMethodCurrency":"BTC","invoiceId":"TCr53ZRiMzJT2JwSrLfnkQ","address":"bc1q875xrh4nul6f83kwhxry7m0d68k9xv2v9p6hz2","due":"0.00135466","customerEmail":null,"showRecommendedFee":true,"feeRate":1.013,"expirationSeconds":107996,"displayExpirationTimer":108000,"status":"New","merchantRefLink":"https://www.idgod.ph/order/05ffd3ef-c8e5-4bb6-b525-5841a35af913","maxTimeSeconds":108000,"storeName":"idgod","itemDesc":"YOU MUST PAY THE EXACT AMOUNT OF COINS ASKED FOR ON THIS TIMER PAGE. A LITTLE OVER IS OK, BUT NOT LESS! Sending multiple payments to the same address is fine if by mistake you did not send enough the first time.","timeLeft":"10559:56","rate":"$62,793.60","orderAmount":"0.00135365","orderAmountFiat":"$85.00","taxIncluded":{"value":0.0,"formatted":null},"invoiceBitcoinUrl":"bitcoin:bc1q875xrh4nul6f83kwhxry7m0d68k9xv2v9p6hz2?amount=0.00135466","invoiceBitcoinUrlQR":"bitcoin:BC1Q875XRH4NUL6F83KWHXRY7M0D68K9XV2V9P6HZ2?amount=0.00135466","txCount":1,"txCountForFee":1,"paid":"0.00000000","storeSupportUrl":null,"orderId":"902874","networkFee":0.00000101,"maxTimeMinutes":1800,"paymentMethodId":"BTC-CHAIN","paymentMethodName":"Bitcoin","cryptoImage":"/imlegacy/bitcoin.svg","storeId":"Gi6i3qcZAprdzQC1suNonj4cCobEL2MoJUweA7mxsxfL","peerInfo":null,"rootPath":"/","redirectAutomatically":false,"activated":true,"invoiceCurrency":"USD","receiptLink":"https://btcpay.idgod.ph/i/TCr53ZRiMzJT2JwSrLfnkQ/receipt","requiredConfirmations":null,"receivedConfirmations":null};
+        const qrOptions = { margin: 0, type: 'svg', color: { dark: '#000', light: '#fff' } };
+        window.exports = {};
+    </script>
+        <script src="/vendor/dom-confetti/dom-confetti.min.js?v=QfuoqzCN7xyhMNkuHmGC7QDPcb9b6KEmJE1c2D-3W-g"></script>
+    <script src="/vendor/vuejs/vue.min.js?v=RQP_FOA6ovPWyB3RlJeIqCW_T_fi6VDpso1V6bVQY_I"></script>
+    <script src="/vendor/vue-qrcode/vue-qrcode.min.js?v=w3m3jzig-TuRAZb5vtFjxBCSr20kcMR3OjfDdk1h0u4"></script>
+    <script src="/vendor/i18next/i18next.min.js?v=NhvxGFWhvuyhWcy2RfXCuXrObkDm_H414p5cA5iuzR0"></script>
+    <script src="/vendor/i18next/i18nextHttpBackend.min.js?v=ATaSNTwIce8fJFaDqnIW8eAT0dN9SJFY-WtZUL3ceQ0"></script>
+    <script src="/vendor/i18next/vue-i18next.js?v=8_tTBueq5EmzU0XnS-6Z_ZX0WxG5tmRS8QoyfpXq8eI"></script>
+    <script src="/js/copy-to-clipboard.js?v=gUIhHSFrxjOWYkQXgWIWW0meIeilBL1BZcAaKvrd8W4"></script>
+    <script src="/js/vue-utils.js?v=G8HPmrAv6KUtf64et1tunV4aJHCHB1RETzKt0g_7JDs"></script>
+    <script src="/main/utils.js?v=GGKGEnV8_rl1MlU1mHEhO9a-tTDyY9wYKWz3LURGvYo"></script>
+    <script src="/checkout/checkout.js?v=a3_aqcqyXC-1SWkkijFtyZoR9yx_8rcU3hiXOMmVSKc"></script>
+    
+
+    
+
+<template id="BitcoinCheckoutBody">
+    
+
+    <div class="payment-box">
+        <div v-if="model.invoiceBitcoinUrlQR" class="qr-container clipboard-button" :data-qr-value="model.invoiceBitcoinUrlQR" :data-clipboard="model.invoiceBitcoinUrl" data-clipboard-confirm-element="#Address_BTC-CHAIN [data-clipboard]">
+            <div>
+                <qrcode :value="model.invoiceBitcoinUrlQR" tag="div" :options="qrOptions">
+            </qrcode></div>
+            <img class="qr-icon" :src="model.cryptoImage" :alt="model.paymentMethodName">
+        </div>
+        <div v-if="model.address" class="input-group mt-3">
+            <div class="form-floating" id="Address_BTC-CHAIN">
+                <span class="truncate-center form-control-plaintext truncate-center--copy truncate-center--elastic" :data-text="model.address">
+        <span class="truncate-center-truncated" data-bs-toggle="tooltip" :title="model.address">
+                <span class="truncate-center-start" v-text="model.address.slice(0, model.address.length - 15)"></span>
+            <span class="truncate-center-end" v-text="model.address.slice(-15)" v-if="model.address.length &gt; 2 * 15"></span>
+        </span>
+        <span class="truncate-center-text" v-text="model.address"></span>
+        <button type="button" class="btn btn-link p-0 clipboard-button" :data-clipboard="model.address">
+            
+<svg role="img" class="icon icon-actions-copy">
+    <use href="/img/icon-sprite.svg?v=OUjl8Vm2HpnMcCtfml0Dwwz-hdXGqLGLfoTYYgOoYlc#actions-copy"></use>
+</svg>
+
+        </button>
+</span>
+
+                <label v-t="{ path: 'address', args: { paymentMethod: model.paymentMethodName }}"></label>
+            </div>
+        </div>
+        <div v-if="lightning" class="input-group mt-3">
+            <div class="form-floating" id="Lightning_BTC-CHAIN">
+                <span class="truncate-center form-control-plaintext truncate-center--copy truncate-center--elastic" :data-text="lightning">
+        <span class="truncate-center-truncated" data-bs-toggle="tooltip" :title="lightning">
+                <span class="truncate-center-start" v-text="lightning.slice(0, lightning.length - 15)"></span>
+            <span class="truncate-center-end" v-text="lightning.slice(-15)" v-if="lightning.length &gt; 2 * 15"></span>
+        </span>
+        <span class="truncate-center-text" v-text="lightning"></span>
+        <button type="button" class="btn btn-link p-0 clipboard-button" :data-clipboard="lightning">
+            
+<svg role="img" class="icon icon-actions-copy">
+    <use href="/img/icon-sprite.svg?v=OUjl8Vm2HpnMcCtfml0Dwwz-hdXGqLGLfoTYYgOoYlc#actions-copy"></use>
+</svg>
+
+        </button>
+</span>
+
+                <label v-t="'lightning'"></label>
+            </div>
+        </div>
+        <a v-if="model.invoiceBitcoinUrl &amp;&amp; model.showPayInWalletButton" class="btn btn-primary rounded-pill w-100 mt-4" id="PayInWallet" target="_blank" :href="model.invoiceBitcoinUrl" :title="$t(hasPayjoin ? 'BIP21 payment link with PayJoin support' : 'BIP21 payment link')" v-t="'pay_in_wallet'"></a>
+        
+<lnurl-withdraw-checkout :model="model" :nfc-supported="nfcSupported" :nfc-scanning="nfcScanning" :nfc-error-message="nfcErrorMessage" :nfc-warning-message="nfcWarningMessage" v-on="$listeners">
+
+    </lnurl-withdraw-checkout></div>
+</template>
+
+<script nonce="">
+	Vue.component("BitcoinCheckoutBody", {
+		props: ['model', 'nfcSupported', 'nfcScanning', 'nfcErrorMessage', 'nfcWarningMessage'],
+		template: "#BitcoinCheckoutBody",
+        components: {
+            qrcode: VueQrcode
+        },
+        data () {
+            // currentTab is needed for backwards-compatibility with old plugin versions
+            return { currentTab: undefined };
+        },
+        computed: {
+            hasPayjoin () {
+                return this.model.invoiceBitcoinUrl.indexOf('pj=') !== -1;
+            },
+            lightning () {
+                const match = this.model.invoiceBitcoinUrl.match(/[&?]lightning=(.*)&?/i);
+                return match ? match[1].toLowerCase() : null;
+            }
+        }
+    });
+</script>
+
+<template id="LightningCheckoutBody">
+    <div class="payment-box">
+        
+
+        <div v-if="model.invoiceBitcoinUrlQR" class="qr-container clipboard-button" :data-qr-value="model.invoiceBitcoinUrlQR" :data-clipboard="model.invoiceBitcoinUrl" data-clipboard-confirm-element="#Lightning_BTC-CHAIN [data-clipboard]">
+            <div>
+                <qrcode :value="model.invoiceBitcoinUrlQR" tag="div" :options="qrOptions">
+            </qrcode></div>
+            <img class="qr-icon" :src="model.cryptoImage" :alt="model.paymentMethodName">
+        </div>
+        <div v-if="model.address" class="input-group mt-3">
+            <div class="form-floating" id="Lightning_BTC-CHAIN">
+                <span class="truncate-center form-control-plaintext truncate-center--copy truncate-center--elastic" :data-text="model.address">
+        <span class="truncate-center-truncated" data-bs-toggle="tooltip" :title="model.address">
+                <span class="truncate-center-start" v-text="model.address.slice(0, model.address.length - 15)"></span>
+            <span class="truncate-center-end" v-text="model.address.slice(-15)" v-if="model.address.length &gt; 2 * 15"></span>
+        </span>
+        <span class="truncate-center-text" v-text="model.address"></span>
+        <button type="button" class="btn btn-link p-0 clipboard-button" :data-clipboard="model.address">
+            
+<svg role="img" class="icon icon-actions-copy">
+    <use href="/img/icon-sprite.svg?v=OUjl8Vm2HpnMcCtfml0Dwwz-hdXGqLGLfoTYYgOoYlc#actions-copy"></use>
+</svg>
+
+        </button>
+</span>
+
+                <label v-t="'lightning'"></label>
+            </div>
+        </div>
+        <a v-if="model.invoiceBitcoinUrl &amp;&amp; model.showPayInWalletButton" class="btn btn-primary rounded-pill w-100 mt-4" id="PayInWallet" target="_blank" :href="model.invoiceBitcoinUrl" v-t="'pay_in_wallet'"></a>
+        <div v-if="!model.invoiceBitcoinUrl &amp;&amp; !model.address" class="alert alert-danger">This payment method is not available when using an insecure connection. Please use HTTPS or Tor.</div>
+        
+<lnurl-withdraw-checkout :model="model" :nfc-supported="nfcSupported" :nfc-scanning="nfcScanning" :nfc-error-message="nfcErrorMessage" :nfc-warning-message="nfcWarningMessage" v-on="$listeners">
+
+    </lnurl-withdraw-checkout></div>          
+</template>
+
+<script nonce="">
+	Vue.component("LightningCheckoutBody", {
+		props: ['model', 'nfcSupported', 'nfcScanning', 'nfcErrorMessage', 'nfcWarningMessage'],
+		template: "#LightningCheckoutBody",
+        components: {
+            qrcode: VueQrcode
+        },
+        data () {
+            // currentTab is needed for backwards-compatibility with old plugin versions
+            return { currentTab: undefined };
+        }
+    });
+</script>
+<template id="lnurl-withdraw-template">
+    <div v-if="display" class="mt-4" id="NFC">
+        <div v-if="nfcErrorMessage" class="alert alert-danger" v-text="nfcErrorMessage"></div>
+        <div v-if="nfcWarningMessage" class="alert alert-warning" v-text="nfcWarningMessage"></div>
+        <button class="btn btn-secondary rounded-pill w-100" type="button" id="PayByNFC" :disabled="nfcScanning || submitting" v-on:click="handleClick">{{btnText}}</button>
+    </div>
+</template>
+<script nonce="">
+Vue.component("lnurl-withdraw-checkout", {
+    template: "#lnurl-withdraw-template",
+    props: {
+        model: Object,
+        nfcSupported: Boolean,
+        nfcScanning: Boolean,
+        nfcErrorMessage: String,
+        nfcWarningMessage: String
+    },
+    computed: {
+        display () {
+            const {
+                onChainWithLnInvoiceFallback: isUnified,
+                paymentMethodId: activePaymentMethodId,
+                availablePaymentMethods: availablePaymentMethods,
+                invoiceBitcoinUrl: paymentUrl
+            } = this.model
+            const lnurlwAvailable = 
+                // Either we have LN or LNURL available directly
+                !!availablePaymentMethods.find(pm => ['BTC-LNURL', 'BTC-LN'].includes(pm.paymentMethodId)) ||
+                // Or the BIP21 payment URL flags Lightning support
+                !!paymentUrl.match(/lightning=ln/i)
+            const isAvailable = activePaymentMethodId === 'BTC-LNURL' || (
+                // Unified QR/BIP21 case
+                (activePaymentMethodId === 'BTC-CHAIN' && isUnified && lnurlwAvailable) ||
+                // Lightning with LNURL available
+                (activePaymentMethodId === 'BTC-LN' && lnurlwAvailable))
+            return isAvailable && (this.nfcSupported || this.testFallback)
+        },
+        testFallback () {
+            return !this.nfcSupported && window.location.search.match('lnurlwtest=(1|true)')
+        },
+        btnText () {
+            if (this.nfcSupported) {
+                if (this.submitting) {
+                    return this.$t('submitting_nfc')
+                } else if (this.nfcScanning) {
+                    return this.$t('scanning_nfc')
+                } else {
+                    return this.$t('pay_by_nfc')
+                }
+            } else {
+                return this.$t('pay_by_lnurl')
+            }
+        }
+    },
+    data () {
+        return {
+				url: "https://btcpay.idgod.ph/plugins/NFC",
+            amount: 0,
+            submitting: false
+        }
+    },
+    beforeMount () {
+        this.$root.$on('read-nfc-data', this.sendData)
+    },
+    beforeDestroy () {
+        this.$root.$off('read-nfc-data')
+    },
+    methods: {
+        async handleClick () {
+            if (this.nfcSupported) {
+                this.$emit('start-nfc-scan')
+            } else {
+                if (this.model.isUnsetTopUp) {
+                    this.handleUnsetTopUp()
+                    if (!this.amount) {
+                        return;
+                    }
+                }
+                const lnurl = prompt("Enter LNURL-Withdraw")
+                if (lnurl) {
+                    await this.sendData(lnurl)
+                }
+            }
+        },
+        handleUnsetTopUp () {
+            const amountStr = prompt("How many sats do you want to pay?")
+            if (amountStr) {
+                try {
+                    this.amount = parseInt(amountStr)
+                } catch {
+                    alert("Please provide a valid number amount in sats")
+                }
+            }
+            return false
+        },
+        async sendData (data) {
+            this.submitting = true
+            this.$emit('handle-nfc-data')
+            
+            // Post LNURL-Withdraw data to server
+            const body = JSON.stringify({ lnurl: data, invoiceId: this.model.invoiceId, amount: this.amount })
+            const opts = { method: 'POST', headers: { 'Content-Type': 'application/json' }, body }
+            const response = await fetch(this.url, opts)
+
+            // Handle response
+            try {
+                const result = await response.text()
+                const action = response.ok ? 'handle-nfc-result' : 'handle-nfc-error'
+                this.$emit(action, result)
+            } catch (error) {
+                this.$emit('handle-nfc-error', error)
+            }
+            this.submitting = false
+        }
+    }
+});
+</script>
+
+
+
+</body></html>

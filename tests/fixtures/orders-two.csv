@@ -1,0 +1,3 @@
+Order ID,Account,Shipping,State,First Name,Middle Name,Last Name,DOB,Issue Date,Street,City,ZIP,Sex,Height,Weight,Eye Color,Hair Color,Photo URL,Signature URL,Order Total
+batch-1,acct-1,"Anaya Samsotha-Cooley, 5125 Leona St, Oakland, CA, 94619, USA",Washington,Anaya,Socheata,Samsotha-Cooley,07/11/2004,05/28/2026,5125 NE Latimer Place,Seattle,98105,Female,5'4",108,Brown,Brown,http://example.com/a-photo.jpg,http://example.com/a-sig.jpg,360.00
+batch-1,acct-1,"Anaya Samsotha-Cooley, 5125 Leona St, Oakland, CA, 94619, USA",Washington,Josie,Paige,Thompson,09/15/2004,05/28/2026,5216 9th Avenue NW,Seattle,98107,Female,5'3",125,Green,Blond,http://example.com/b-photo.jpg,http://example.com/b-sig.jpg,360.00

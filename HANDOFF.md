@@ -34,7 +34,7 @@ Default discount code: `hartlr` (reference only — site has no coupon field; se
 | Full spreadsheet test (4 WA IDs) | ✅ Done — $480 cart |
 | Discount auto-apply | ✅ On cart via `#id_coupon` + UPDATE |
 | Checkout email + shipping | ✅ `--checkout` fills cart form from export Shipping column |
-| Payment completion | ⚠️ Manual — captcha on FINISH ORDER |
+| Payment completion | ✅ With `--checkout-submit` + captcha solver (ppllocr or 2captcha) |
 
 ## Verified test results
 
@@ -137,7 +137,7 @@ idgod-order-cli/
 
 ### P0 — Must do to call it "complete"
 
-1. **FINISH ORDER with captcha** — `--checkout-submit` blocked by `#id_captcha_1`; user must `--headed` and click FINISH ORDER manually.
+1. **FINISH ORDER with captcha** — use `--checkout-submit --captcha-solver ppllocr` (local) or `2captcha` (API key). Manual: `--headed --captcha-solver manual`.
 2. **Verify discount reduces total** — coupon fills and UPDATE runs; confirm `hartlr` actually lowers price on live cart.
 
 ### P1 — Should do

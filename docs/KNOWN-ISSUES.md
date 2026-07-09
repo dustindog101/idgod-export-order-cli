@@ -11,9 +11,10 @@
 ## Feature gaps
 
 ### FINISH ORDER / captcha
-- **Status:** Not automatable headlessly
-- Cart page has `#id_captcha_1` — blocks `--checkout-submit`
-- **Workaround:** Run `--checkout --headed`, solve captcha, click FINISH ORDER manually
+- Cart uses django-simple-captcha (`#id_captcha_1` + image)
+- **Automated:** `--checkout-submit` with `--captcha-solver ppllocr` (install `pip install -e '.[captcha]'`) or `--captcha-solver 2captcha` + `TWOCAPTCHA_API_KEY`
+- **Manual:** `--captcha-solver manual --headed`
+- **Disk:** ppllocr wheel is ~67MB; use 2captcha if disk is tight
 
 ### Discount code
 - **Status:** ✅ Fills `#id_coupon` and clicks UPDATE when `--checkout`

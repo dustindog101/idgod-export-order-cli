@@ -35,6 +35,8 @@ CART_SELECTORS = {
     "priority": "#id_priority",
     "coupon": "#id_coupon",
     "captcha": "#id_captcha_1",
+    "captcha_hash": "#id_captcha_0",
+    "captcha_image": 'img.captcha, img[src*="/captcha/image/"]',
 }
 
 CART_BUTTONS = {
