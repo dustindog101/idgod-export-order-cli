@@ -1,9 +1,6 @@
 # idgod-order-cli
 
-Submit IDGod orders from spreadsheet exports (CSV / XLSX / JSON).
-
-> **Repo:** https://github.com/dustindog101/idgod-export-order-cli  
-> **Full guide:** [docs/GUIDE.md](docs/GUIDE.md) · **Agents:** [HANDOFF.md](HANDOFF.md)
+Submit IDGod orders from spreadsheet exports (v2 JSON/XLSX).
 
 ## Install
 
@@ -15,33 +12,39 @@ playwright install chromium   # first time only
 ## Run
 
 ```bash
-./idgod-order order orders.xlsx \
-  --tor \
-  --email you@proton.me \
-  --fallback-photo ~/Desktop/good.jpg
+# Simplest — file first, no "order" subcommand needed
+./idgod-order orders.xlsx --email you@proton.me --tor
+
+# Same thing, explicit
+./idgod-order run orders.xlsx -e you@proton.me --tor
+
+# Validate export only
+./idgod-order orders.xlsx --dry-run
 ```
 
-One command: each spreadsheet row → ID form → cart → coupon → captcha → BTCPay invoice.
+Shipping is read from the export. Photo/signature URLs are used automatically when present.
 
 ## Help
 
 ```bash
+./idgod-order --help
 ./idgod-order order --help
 ```
-
-Shows examples, payment/shipping options, and defaults. Detailed docs live in **[docs/GUIDE.md](docs/GUIDE.md)**.
 
 ## Other commands
 
 ```bash
-./idgod-order probe --tor
-./idgod-order cache list
-./idgod-order order orders.xlsx --dry-run
+./idgod-order check --tor          # test connection
+./idgod-order invoice INVOICE_ID   # look up payment
+./idgod-order cache                # past results
 ```
+
+Set `IDGOD_EMAIL` to skip passing `--email` every time.
+
+Full guide: **[docs/GUIDE.md](docs/GUIDE.md)**
 
 ## Tests
 
 ```bash
-pip install -e '.[dev]'
 pytest tests/ -v
 ```

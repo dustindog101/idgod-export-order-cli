@@ -276,3 +276,59 @@ def format_result_human(result: Any, *, verbose: bool = False) -> str:
         lines.append(_dim(f"Timings: {parts}"))
 
     return "\n".join(lines)
+
+
+def format_multi_checkout_human(
+    batch_results: list[tuple[Any, Any]],
+    *,
+    verbose: bool = False,
+) -> str:
+    """Summary when multiple export orders each get their own checkout."""
+    lines: list[str] = []
+    ok = all(r.success for _, r in batch_results)
+    status = _green("SUCCESS") if ok else _red("FAILED")
+    lines.append(f"=== {len(batch_results)} checkouts complete · {status} ===")
+    lines.append("")
+
+    for index, (batch, result) in enumerate(batch_results, start=1):
+        ship = getattr(batch, "shipping_raw", "") or ""
+        order_id = getattr(batch, "order_id", "") or f"batch-{index}"
+        lines.append(_bold(f"Checkout {index}/{len(batch_results)} · {order_id}"))
+        if ship:
+            short = ship if len(ship) <= 72 else ship[:71] + "…"
+            lines.append(f"  Shipping  {short}")
+        lines.append(_dim("─" * 40))
+
+        pd = getattr(result, "payment_details", None)
+        if getattr(result, "payment_url", ""):
+            lines.append(f"  Invoice   {result.payment_url}")
+        if pd and getattr(pd, "populated", False):
+            if pd.order_number:
+                lines.append(f"  Order #   {pd.order_number}")
+            if pd.order_status_url:
+                lines.append(f"  Status    {pd.order_status_url}")
+            if pd.amount_due_display or pd.amount_due_btc:
+                lines.append(f"  Amount    {pd.amount_due_display or pd.amount_due_btc}")
+            if pd.total_fiat:
+                lines.append(f"  Fiat      {pd.total_fiat}")
+        elif getattr(result, "payment_info", ""):
+            for ln in result.payment_info.splitlines()[:3]:
+                if ln.strip():
+                    lines.append(f"  {ln.strip()}")
+
+        orders = getattr(result, "order_results", []) or []
+        if orders:
+            names = ", ".join(o.person.display_name for o in orders if o.success)
+            lines.append(f"  IDs       {names or '—'}")
+        if result.total_after_discount is not None or result.total_price is not None:
+            total = result.total_after_discount if result.total_after_discount is not None else result.total_price
+            lines.append(f"  Total     {_money(total)}")
+        if not result.success:
+            lines.append(f"  {_red('✗')} {result.message}")
+        elif verbose and result.checkout_message:
+            lines.append(_dim(f"  {result.checkout_message}"))
+        if getattr(result, "cache_path", ""):
+            lines.append(_dim(f"  Cached → {result.cache_path}"))
+        lines.append("")
+
+    return "\n".join(lines).rstrip()

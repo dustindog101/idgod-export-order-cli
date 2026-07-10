@@ -55,6 +55,8 @@ async def _resolve_image(
     source: str,
     fallback: str = "",
     proxy: ProxyConfig | None = None,
+    *,
+    optimize_images: bool = False,
 ) -> Path:
     src = source.strip()
     if src.startswith(("http://", "https://")):
@@ -73,7 +75,7 @@ async def _resolve_image(
                 tmp = tempfile.NamedTemporaryFile(delete=False, suffix=suffix)
                 tmp.write(resp.content)
                 tmp.close()
-                return _prepare_upload_image(Path(tmp.name))
+                return _prepare_upload_image(Path(tmp.name), optimize=optimize_images)
         except Exception:
             if fallback:
                 src = fallback
@@ -88,7 +90,12 @@ async def _resolve_image(
     p = Path(src).expanduser()
     if not p.exists():
         raise FileNotFoundError(f"Image not found: {src}")
-    return _prepare_upload_image(p)
+    return _prepare_upload_image(p, optimize=optimize_images)
+
+
+# idgod accepts JPEG/PNG; vendor exports are often WebP — convert format only by default.
+_UPLOAD_PASSTHROUGH_SUFFIXES = {".jpg", ".jpeg", ".png", ".gif"}
+_UPLOAD_CONVERT_SUFFIXES = {".webp"}
 
 
 def _parse_money(text: str) -> float | None:
@@ -96,22 +103,35 @@ def _parse_money(text: str) -> float | None:
     return float(m.group(1)) if m else None
 
 
-def _prepare_upload_image(path: Path) -> Path:
-    """Normalize vendor WebP / huge uploads for idgod's file inputs."""
+def _prepare_upload_image(path: Path, *, optimize: bool = False) -> Path:
+    """Prepare images for idgod upload.
+
+    Default: format-only — WebP → JPEG at high quality, original resolution preserved.
+    With optimize=True: also downscale large images and use stronger JPEG compression.
+    """
+    suffix = path.suffix.lower()
+    if not optimize and suffix in _UPLOAD_PASSTHROUGH_SUFFIXES:
+        return path
+    if not optimize and suffix not in _UPLOAD_CONVERT_SUFFIXES:
+        return path
+
     try:
-        size = path.stat().st_size
-        suffix = path.suffix.lower()
-        if suffix not in {".webp", ".png"} and size <= 4_000_000:
-            return path
         from PIL import Image
 
         img = Image.open(path)
         if img.mode not in ("RGB", "L"):
             img = img.convert("RGB")
-        if max(img.size) > 1800:
+        if optimize and max(img.size) > 1800:
             img.thumbnail((1800, 1800))
         out = Path(tempfile.mktemp(suffix=".jpg"))
-        img.save(out, "JPEG", quality=88, optimize=True)
+        quality = 88 if optimize else 98
+        img.save(
+            out,
+            "JPEG",
+            quality=quality,
+            subsampling=0 if not optimize else 2,
+            optimize=optimize,
+        )
         return out
     except Exception:
         return path
@@ -211,6 +231,7 @@ class IdGodOrderer:
         cache_dir: str = "",
         use_cache: bool = True,
         fetch_payment: bool = False,
+        optimize_images: bool = False,
         ui: Any = None,
     ):
         self.headless = headless
@@ -237,6 +258,7 @@ class IdGodOrderer:
         self.cache_dir = cache_dir
         self.use_cache = use_cache
         self.fetch_payment = fetch_payment
+        self.optimize_images = optimize_images
         self.ui = ui
         self._tor_mgr = TorManager()
         self._active_proxy: ProxyConfig | None = None
@@ -376,7 +398,10 @@ class IdGodOrderer:
                 await page.locator(SELECTORS[key]).dispatch_event("change")
                 await page.locator(SELECTORS[key]).dispatch_event("blur")
 
-            photo_path = await _resolve_image(person.photo, self.fallback_photo, self._active_proxy)
+            photo_path = await _resolve_image(
+                person.photo, self.fallback_photo, self._active_proxy,
+                optimize_images=self.optimize_images,
+            )
             if self.ui:
                 self.ui.detail("Uploading photo")
             await page.locator(SELECTORS["picture"]).set_input_files(str(photo_path))
@@ -385,7 +410,10 @@ class IdGodOrderer:
             if person.signature or self.fallback_signature:
                 if self.ui:
                     self.ui.detail("Uploading signature")
-                sig_path = await _resolve_image(person.signature, self.fallback_signature, self._active_proxy)
+                sig_path = await _resolve_image(
+                    person.signature, self.fallback_signature, self._active_proxy,
+                    optimize_images=self.optimize_images,
+                )
                 sig_loc = page.locator(SELECTORS["signature"])
                 if await sig_loc.count():
                     await sig_loc.set_input_files(str(sig_path))

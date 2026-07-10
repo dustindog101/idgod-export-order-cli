@@ -4,8 +4,10 @@ from __future__ import annotations
 import argparse
 import asyncio
 import json
+import os
 import sys
 from pathlib import Path
+from typing import Any
 
 from .cache import OrderCache, default_cache_dir
 from .btcpay import PaymentDetails, parse_btcpay_html
@@ -35,10 +37,11 @@ from .help_text import (
     PAYMENT_CHOICES,
     PAYMENT_HELP,
     ROOT_DESCRIPTION,
+    ROOT_EPILOG,
     SHIPPING_CHOICES,
     SHIPPING_HELP,
 )
-from .ui import RunUI, format_result_human
+from .ui import RunUI, format_multi_checkout_human, format_result_human
 
 
 class _OrderHelpFormatter(argparse.RawDescriptionHelpFormatter):
@@ -66,24 +69,32 @@ def _add_proxy_args(p: argparse.ArgumentParser) -> None:
 
 
 def _add_person_args(p: argparse.ArgumentParser) -> None:
-    p.add_argument("file", nargs="?", help="CSV, XLSX, or JSON export")
-    p.add_argument("--file", "-f", dest="file_flag", help="Input file")
+    p.add_argument("file", nargs="?", help="Export file (.xlsx, .csv, .json)")
+    p.add_argument("--file", "-f", dest="file_flag", help="Export file")
 
-    req = p.add_argument_group("required for a real order")
-    req.add_argument("--email", default="", help="Checkout email (payment instructions sent here)")
+    req = p.add_argument_group("required for checkout")
     req.add_argument(
+        "-e",
+        "--email",
+        default=os.environ.get("IDGOD_EMAIL", ""),
+        help="Checkout email (or set IDGOD_EMAIL)",
+    )
+
+    conn = p.add_argument_group("connection")
+    # proxy args added via _add_proxy_args after this
+
+    ov = p.add_argument_group("optional")
+    ov.add_argument(
         "--fallback-photo",
         default="",
-        help="Local photo if export URL is dead",
+        help="Local photo if export URL fails",
     )
-    req.add_argument(
+    ov.add_argument(
         "--fallback-signature",
         default="",
-        help="Local signature if export URL is dead",
+        help="Local signature if export URL fails",
     )
-
-    ov = p.add_argument_group("overrides")
-    ov.add_argument("--limit", type=int, default=0, help="Max rows from file (0 = all)")
+    ov.add_argument("--limit", type=int, default=0, help="Max IDs to process (0 = all)")
     ov.add_argument("--discount", default=DEFAULT_DISCOUNT, help=f"Coupon code (default: {DEFAULT_DISCOUNT})")
     ov.add_argument(
         "--state-variant",
@@ -131,6 +142,11 @@ def _add_person_args(p: argparse.ArgumentParser) -> None:
     adv.add_argument("--timeout", type=int, default=60, help=argparse.SUPPRESS)
     adv.add_argument("--no-cache", action="store_true", help="Do not save result JSON to cache")
     adv.add_argument("--no-fetch-payment", action="store_true", help="Skip BTCPay invoice scrape")
+    adv.add_argument(
+        "--optimize-images",
+        action="store_true",
+        help="Downscale/compress photos for upload (default: WebP→JPEG only, full quality)",
+    )
     adv.add_argument("--debug-dir", default="", help="Save cart/captcha HTML for debugging")
     adv.add_argument("--cache-dir", default="", help=argparse.SUPPRESS)
     adv.add_argument(
@@ -175,27 +191,36 @@ def build_parser() -> argparse.ArgumentParser:
         prog="idgod-order",
         description=ROOT_DESCRIPTION,
         formatter_class=_OrderHelpFormatter,
+        epilog=ROOT_EPILOG,
     )
     sub = root.add_subparsers(dest="command")
 
-    order_p = sub.add_parser(
-        "order",
-        help="Place order(s): ID forms → cart → checkout → BTCPay",
-        description=ORDER_DESCRIPTION,
-        formatter_class=_OrderHelpFormatter,
-        epilog=ORDER_EPILOG,
-    )
-    _add_person_args(order_p)
-    _add_proxy_args(order_p)
+    for name, help_text in (
+        ("order", "Submit orders from an export file (default)"),
+        ("run", "Alias for order"),
+    ):
+        order_p = sub.add_parser(
+            name,
+            help=help_text,
+            description=ORDER_DESCRIPTION,
+            formatter_class=_OrderHelpFormatter,
+            epilog=ORDER_EPILOG,
+        )
+        _add_person_args(order_p)
+        _add_proxy_args(order_p)
 
-    probe_p = sub.add_parser("probe", help="Test proxy/Tor connectivity to idgod.ph")
-    probe_p.add_argument("--json", action="store_true")
-    probe_p.add_argument("--timeout", type=int, default=25)
-    probe_p.add_argument("--url", default=ORDER_URL)
-    probe_p.add_argument("--method", choices=["playwright", "httpx", "both"], default="both")
-    _add_proxy_args(probe_p)
+    for name, help_text in (
+        ("probe", "Test Tor/proxy connection to idgod.ph"),
+        ("check", "Alias for probe"),
+    ):
+        probe_p = sub.add_parser(name, help=help_text)
+        probe_p.add_argument("--json", action="store_true")
+        probe_p.add_argument("--timeout", type=int, default=25)
+        probe_p.add_argument("--url", default=ORDER_URL)
+        probe_p.add_argument("--method", choices=["playwright", "httpx", "both"], default="both")
+        _add_proxy_args(probe_p)
 
-    cache_p = sub.add_parser("cache", help="List past order results (not resumable sessions)")
+    cache_p = sub.add_parser("cache", help="Show past order results")
     cache_p.add_argument("cache_action", nargs="?", default="list", choices=["list"])
     cache_p.add_argument("--limit", type=int, default=15)
     cache_p.add_argument("--json", action="store_true")
@@ -203,11 +228,11 @@ def build_parser() -> argparse.ArgumentParser:
 
     invoice_p = sub.add_parser(
         "invoice",
-        help="Look up a BTCPay invoice (order #, status page, BTC address)",
+        help="Look up a BTCPay invoice (BTC address, order #)",
     )
     invoice_p.add_argument(
         "invoice_ref",
-        help="Full BTCPay URL or invoice id (e.g. 8oDSQNud6WzNy4ASS9ZMEY)",
+        help="BTCPay invoice id or full URL",
     )
     invoice_p.add_argument("--json", action="store_true")
     _add_proxy_args(invoice_p)
@@ -291,9 +316,8 @@ def _load_people(args: argparse.Namespace) -> list[Person]:
         })]
 
     raise SystemExit(
-        "Error: provide a spreadsheet file or single-person flags.\n"
-        "  idgod-order order orders.xlsx --tor --email you@proton.me "
-        "--fallback-photo ~/Desktop/good.jpg"
+        "Error: provide an export file or single-person flags.\n"
+        "  idgod-order orders.xlsx --email you@proton.me --tor"
     )
 
 
@@ -452,6 +476,36 @@ def _print_result(result, as_json: bool, *, verbose: bool = False) -> None:
         print(json.dumps(result.to_dict(), indent=2))
         return
     print(format_result_human(result, verbose=verbose))
+
+
+def _print_order_results(
+    batch_results: list[tuple[OrderBatch, Any]],
+    args: argparse.Namespace,
+) -> None:
+    if args.json:
+        print(
+            json.dumps(
+                {
+                    "success": all(r.success for _, r in batch_results),
+                    "checkout_count": len(batch_results),
+                    "checkouts": [
+                        {
+                            "export_order_id": batch.order_id,
+                            "shipping_address": batch.shipping_raw,
+                            "local_delivery": batch.local_delivery,
+                            **result.to_dict(),
+                        }
+                        for batch, result in batch_results
+                    ],
+                },
+                indent=2,
+            )
+        )
+        return
+    if len(batch_results) == 1:
+        print(format_result_human(batch_results[0][1], verbose=args.verbose))
+        return
+    print(format_multi_checkout_human(batch_results, verbose=args.verbose))
 
 
 def _should_skip_confirm(args: argparse.Namespace) -> bool:
@@ -628,7 +682,8 @@ async def _cmd_order(args: argparse.Namespace) -> int:
     if full_order and not args.email:
         raise SystemExit(
             "Error: --email is required for checkout (payment instructions are sent there).\n"
-            "  idgod-order order orders.xlsx --tor --email you@proton.me ..."
+            "  idgod-order orders.xlsx --email you@proton.me --tor\n"
+            "  Or set IDGOD_EMAIL"
         )
 
     ui = RunUI(json_mode=args.json)
@@ -685,10 +740,11 @@ async def _cmd_order(args: argparse.Namespace) -> int:
         cache_dir=args.cache_dir,
         use_cache=not args.no_cache,
         fetch_payment=full_order and not args.no_fetch_payment,
+        optimize_images=args.optimize_images,
         ui=ui,
     )
 
-    last_result = None
+    batch_results: list[tuple[OrderBatch, Any]] = []
     for batch_index, batch in enumerate(batches, start=1):
         if not batch.people:
             if ui and batch.order_id:
@@ -706,30 +762,54 @@ async def _cmd_order(args: argparse.Namespace) -> int:
         shipping = _load_shipping(args, batch.people, bundle=bundle, batch=batch)
         orderer.shipping = shipping
         last_result = await orderer.submit(batch.people)
+        batch_results.append((batch, last_result))
         if not last_result.success:
-            _print_result(last_result, args.json, verbose=args.verbose)
+            _print_order_results(batch_results, args)
             return 1
 
-    if last_result is None:
+    if not batch_results:
         print("No IDs to process.")
         return 1
-    _print_result(last_result, args.json, verbose=args.verbose)
-    return 0 if last_result.success else 1
+    _print_order_results(batch_results, args)
+    return 0 if all(r.success for _, r in batch_results) else 1
 
 
-_SUBCOMMANDS = frozenset({"order", "probe", "cache", "invoice", "-h", "--help"})
+_COMMANDS = frozenset({
+    "order", "run", "probe", "check", "cache", "invoice", "-h", "--help",
+})
+_EXPORT_SUFFIXES = {".csv", ".xlsx", ".xls", ".json"}
+
+
+def _looks_like_export_file(arg: str) -> bool:
+    if arg.startswith("-"):
+        return False
+    path = Path(arg)
+    if path.suffix.lower() in _EXPORT_SUFFIXES:
+        return True
+    return path.exists() and path.is_file()
+
+
+def _normalize_argv(argv: list[str]) -> list[str]:
+    if not argv:
+        return argv
+    if argv[0] in {"run", "submit"}:
+        argv = ["order", *argv[1:]]
+    elif argv[0] in {"check", "test"}:
+        argv = ["probe", *argv[1:]]
+    if argv[0] not in _COMMANDS and _looks_like_export_file(argv[0]):
+        argv = ["order", *argv]
+    return argv
 
 
 def main(argv: list[str] | None = None) -> int:
     argv = list(argv if argv is not None else sys.argv[1:])
-    if argv and argv[0] not in _SUBCOMMANDS:
-        argv = ["order", *argv]
+    argv = _normalize_argv(argv)
     parser = build_parser()
     args = parser.parse_args(argv)
     if not getattr(args, "command", None):
         args.command = "order"
 
-    if args.command == "probe":
+    if args.command in ("probe", "check"):
         return asyncio.run(_cmd_probe(args))
     if args.command == "cache":
         return asyncio.run(_cmd_cache(args))

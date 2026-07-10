@@ -81,3 +81,29 @@ def test_probe_subcommand():
     args = build_parser().parse_args(["probe", "--tor", "--method", "httpx"])
     assert args.command == "probe"
     assert args.tor is True
+
+
+def test_check_alias_normalizes_to_probe():
+    from idgod_order_cli.cli import _normalize_argv
+
+    assert _normalize_argv(["check", "--tor"]) == ["probe", "--tor"]
+
+
+def test_run_alias_normalizes_to_order():
+    from idgod_order_cli.cli import _normalize_argv
+
+    assert _normalize_argv(["run", "orders.xlsx", "-y"]) == ["order", "orders.xlsx", "-y"]
+
+
+def test_bare_export_file_prepends_order():
+    from idgod_order_cli.cli import _normalize_argv
+
+    assert _normalize_argv(["orders.xlsx", "--dry-run"]) == ["order", "orders.xlsx", "--dry-run"]
+
+
+def test_email_short_flag_and_env(monkeypatch):
+    monkeypatch.setenv("IDGOD_EMAIL", "env@example.com")
+    args = build_parser().parse_args(["order", "x.csv", "-e", "cli@example.com"])
+    assert args.email == "cli@example.com"
+    args_default = build_parser().parse_args(["order", "x.csv"])
+    assert args_default.email == "env@example.com"

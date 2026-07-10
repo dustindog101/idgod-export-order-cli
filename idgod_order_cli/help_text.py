@@ -3,40 +3,28 @@
 from __future__ import annotations
 
 ORDER_DESCRIPTION = """\
-Place complete orders from a spreadsheet export.
+Submit orders from an export file (.xlsx, .csv, or .json).
 
-  Row data     → each person's ID form (name, DOB, address, photo, …)
-  Shipping col → one shared delivery address at checkout
-  --email      → where payment instructions are sent
-
-A real run does everything: ID forms → cart → coupon → captcha → BTCPay invoice."""
+Each row → one ID on idgod.ph. Shipping comes from the export (or --shipping).
+A real run fills forms, applies coupon, solves captcha, and returns the BTCPay invoice."""
 
 ORDER_EPILOG = """\
-examples:
-  idgod-order order orders.xlsx --tor --email you@proton.me \\
-    --fallback-photo ~/Desktop/good.jpg
+quick start (order is optional when the first argument is a file):
 
-  idgod-order order orders.xlsx --proxy-file proxies/webshare.txt \\
-    --email you@proton.me --fallback-photo ~/Desktop/good.jpg --limit 1
+  idgod-order orders.xlsx --email you@proton.me --tor
+  idgod-order orders.xlsx --dry-run
+  idgod-order run orders.xlsx -e you@proton.me --tor    # same as order
 
-  idgod-order order orders.xlsx --dry-run
-  idgod-order probe --tor
-  idgod-order cache list
-  idgod-order invoice 8oDSQNud6WzNy4ASS9ZMEY --tor
+other commands:
+  idgod-order check --tor              test connection (alias: probe)
+  idgod-order invoice INVOICE_ID --tor   look up payment / order #
+  idgod-order cache                      past results (alias: cache list)
 
-payment (--payment-method, default: bitcoin):
-  bitcoin    Bitcoin on BTCPay
-  litecoin   Litecoin
-  card       Credit/debit, Apple Pay, Google Pay
+environment:
+  IDGOD_EMAIL   default for --email
 
-shipping (--shipping-method, default: standard):
-  standard   ~20 business days, $20
-  express    ~10–14 days, $50
-  super      ~5–8 days, $120 (≤10 people)
-
-state ID type (when a state has multiple dropdown options):
-  default    picks the cheapest matching option automatically
-  override   --state-variant "Washington=Washington Polycarbonate"
+payment (--payment-method):  bitcoin (default), litecoin, card
+shipping (--shipping-method): standard $20 (default), express, super, group
 
 more: docs/GUIDE.md
 """
@@ -47,4 +35,10 @@ SHIPPING_CHOICES = ("standard", "express", "super", "group")
 PAYMENT_HELP = "bitcoin (default), litecoin, card"
 SHIPPING_HELP = "standard $20 (default), express $50, super $120, group $200"
 
-ROOT_DESCRIPTION = "Submit IDGod orders from CSV/XLSX/JSON exports."
+ROOT_DESCRIPTION = """\
+Submit IDGod orders from spreadsheet exports.
+
+Most common:
+  idgod-order FILE --email you@proton.me --tor"""
+
+ROOT_EPILOG = ORDER_EPILOG
