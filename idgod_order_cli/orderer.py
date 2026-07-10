@@ -73,7 +73,7 @@ async def _resolve_image(
                 tmp = tempfile.NamedTemporaryFile(delete=False, suffix=suffix)
                 tmp.write(resp.content)
                 tmp.close()
-                return Path(tmp.name)
+                return _prepare_upload_image(Path(tmp.name))
         except Exception:
             if fallback:
                 src = fallback
@@ -88,12 +88,99 @@ async def _resolve_image(
     p = Path(src).expanduser()
     if not p.exists():
         raise FileNotFoundError(f"Image not found: {src}")
-    return p
+    return _prepare_upload_image(p)
 
 
 def _parse_money(text: str) -> float | None:
     m = re.search(r"\$?\s*([\d,]+\.?\d*)", text.replace(",", ""))
     return float(m.group(1)) if m else None
+
+
+def _prepare_upload_image(path: Path) -> Path:
+    """Normalize vendor WebP / huge uploads for idgod's file inputs."""
+    try:
+        size = path.stat().st_size
+        suffix = path.suffix.lower()
+        if suffix not in {".webp", ".png"} and size <= 4_000_000:
+            return path
+        from PIL import Image
+
+        img = Image.open(path)
+        if img.mode not in ("RGB", "L"):
+            img = img.convert("RGB")
+        if max(img.size) > 1800:
+            img.thumbnail((1800, 1800))
+        out = Path(tempfile.mktemp(suffix=".jpg"))
+        img.save(out, "JPEG", quality=88, optimize=True)
+        return out
+    except Exception:
+        return path
+
+
+def _extract_order_error(body: str) -> str:
+    for line in body.splitlines():
+        text = line.strip()
+        if not text:
+            continue
+        if re.search(
+            r"couldn't add|highlighted fields|required|invalid|error|new photo is required",
+            text,
+            re.I,
+        ):
+            return text
+    return "Order form rejected — check required fields and photo upload"
+
+
+async def _wait_for_submit_result(page, *, checkout: bool, timeout_ms: int) -> tuple[bool, str]:
+    """Wait for add-to-cart or checkout redirect; surface validation errors."""
+    email_sel = CART_SELECTORS["email"]
+    deadline = time.time() + timeout_ms / 1000
+    stable_ok = 0
+    while time.time() < deadline:
+        body = await page.inner_text("body")
+        if re.search(
+            r"couldn't add that card|please check the highlighted fields|new photo is required",
+            body,
+            re.I,
+        ):
+            return False, _extract_order_error(body)
+
+        if checkout:
+            if await page.locator(email_sel).count():
+                return True, ""
+            if CART_URL in page.url and await page.locator(CART_SELECTORS["name"]).count():
+                return True, ""
+        else:
+            stable_ok += 1
+            if stable_ok >= 3:
+                return True, ""
+
+        await page.wait_for_timeout(1000)
+
+    if checkout and await page.locator(email_sel).count():
+        return True, ""
+    if checkout:
+        return False, f"Timed out waiting for cart checkout (last URL: {page.url})"
+    return False, "Timed out waiting for add-to-cart confirmation"
+
+
+async def _ensure_cart_checkout_page(page, *, timeout_ms: int) -> tuple[bool, str]:
+    if await page.locator(CART_SELECTORS["email"]).count():
+        return True, ""
+    if CART_URL not in page.url:
+        try:
+            await page.goto(CART_URL, wait_until="domcontentloaded", timeout=timeout_ms)
+        except Exception as e:
+            return False, f"Failed to open cart: {e}"
+    deadline = time.time() + timeout_ms / 1000
+    while time.time() < deadline:
+        if await page.locator(CART_SELECTORS["email"]).count():
+            return True, ""
+        await page.wait_for_timeout(1000)
+    body = await page.inner_text("body")
+    if re.search(r"cart contents\s*\(0\)|your cart is empty|start order now", body, re.I):
+        return False, "Cart is empty — order form submit did not add an ID"
+    return False, "Cart checkout form not found (#id_email missing)"
 
 
 class IdGodOrderer:
@@ -293,6 +380,7 @@ class IdGodOrderer:
             if self.ui:
                 self.ui.detail("Uploading photo")
             await page.locator(SELECTORS["picture"]).set_input_files(str(photo_path))
+            await page.wait_for_timeout(1500)
 
             if person.signature or self.fallback_signature:
                 if self.ui:
@@ -301,6 +389,7 @@ class IdGodOrderer:
                 sig_loc = page.locator(SELECTORS["signature"])
                 if await sig_loc.count():
                     await sig_loc.set_input_files(str(sig_path))
+                    await page.wait_for_timeout(1000)
 
             if person.issue_date:
                 extra = page.locator(SELECTORS["custom_license_number"])
@@ -324,7 +413,7 @@ class IdGodOrderer:
                 self.ui.step(f"Submitting → {dest}")
 
             try:
-                async with page.expect_navigation(timeout=self.timeout_ms):
+                async with page.expect_navigation(timeout=min(self.timeout_ms, 45000)):
                     await page.evaluate(
                         """(actionVal) => {
                           const form = document.getElementById('order-form');
@@ -340,12 +429,23 @@ class IdGodOrderer:
                         action_val,
                     )
             except Exception:
-                # Fallback: direct click
                 await submit.first.click()
-                await page.wait_for_timeout(4000)
+
+            ok_submit, submit_msg = await _wait_for_submit_result(
+                page,
+                checkout=checkout,
+                timeout_ms=max(self.timeout_ms, 120000 if checkout else 60000),
+            )
+            if not ok_submit:
+                return OrderResult(
+                    person=person,
+                    success=False,
+                    message=submit_msg,
+                    state_selected=chosen.label,
+                )
 
             await page.wait_for_load_state("domcontentloaded")
-            await page.wait_for_timeout(1000)
+            await page.wait_for_timeout(500)
 
             if self.ui:
                 self.ui.ok(f"{person.display_name} · {chosen.label}")
@@ -983,11 +1083,19 @@ class IdGodOrderer:
                         )
 
                     # Ensure we're on cart/checkout to read totals
-                    if CART_URL not in page.url:
-                        if self.ui:
-                            self.ui.step(f"Navigating to cart")
-                        await page.goto(CART_URL, wait_until="domcontentloaded")
-                        await page.wait_for_timeout(2000)
+                    ok_cart, cart_msg = await _ensure_cart_checkout_page(
+                        page, timeout_ms=max(self.timeout_ms, 90000)
+                    )
+                    if not ok_cart:
+                        return CheckoutResult(
+                            success=False,
+                            message=cart_msg,
+                            order_results=results,
+                            discount_code=self.discount_code,
+                            proxy_used=proxy.display if proxy else "direct",
+                            probe_results=self._probe_results,
+                            checkout_attempted=self.checkout,
+                        )
 
                     await self._write_debug_dump(page, "cart-before-checkout")
                     fill_meta = CheckoutFillMeta(completed=False, message="", filled=[], missing=[])
