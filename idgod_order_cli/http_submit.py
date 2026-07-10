@@ -2,15 +2,17 @@
 
 from __future__ import annotations
 
+import asyncio
 import re
+import tempfile
 import time
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
-from urllib.parse import urljoin
+from urllib.parse import urljoin, urlparse
 
 import httpx
 
-from .btcpay import PaymentDetails, parse_btcpay_html
+from .btcpay import PaymentDetails, fetch_btcpay_http, parse_btcpay_html
 from .cache import OrderCache
 from .captcha import (
     CAPTCHA_LEN_MAX,
@@ -40,9 +42,9 @@ from .orderer import (
     CART_URL,
     DEFAULT_SHIPPING_VALUE,
     ORDER_URL,
+    USER_AGENT,
     _extract_order_error,
     _prepare_upload_image,
-    _resolve_image,
 )
 from .selectors import PAYMENT_LABELS, SHIPPING_ALIASES
 from .states import (
@@ -59,6 +61,94 @@ from .states import (
 
 if TYPE_CHECKING:
     from .orderer import IdGodOrderer
+
+UploadFile = tuple[str, bytes, str]
+ImageCache = dict[str, UploadFile]
+
+
+async def _download_upload_file(
+    session: IdGodHttpSession,
+    orderer: IdGodOrderer,
+    source: str,
+    fallback: str,
+    cache: ImageCache,
+) -> UploadFile | None:
+    src = (source or "").strip()
+    if not src:
+        if fallback:
+            src = fallback
+        else:
+            return None
+    if src in cache:
+        return cache[src]
+
+    if src.startswith(("http://", "https://")):
+        try:
+            resp = await session.client.get(
+                src,
+                headers={"User-Agent": USER_AGENT, "Accept": "image/*"},
+            )
+            resp.raise_for_status()
+            suffix = Path(urlparse(src).path).suffix or ".jpg"
+            tmp = Path(tempfile.mktemp(suffix=suffix))
+            tmp.write_bytes(resp.content)
+            prepared = _prepare_upload_image(tmp)
+            item: UploadFile = (
+                prepared.name,
+                prepared.read_bytes(),
+                "image/jpeg",
+            )
+            cache[src] = item
+            return item
+        except Exception:
+            if fallback and fallback != src:
+                return await _download_upload_file(session, orderer, fallback, "", cache)
+            raise
+
+    p = Path(src).expanduser()
+    prepared = _prepare_upload_image(p)
+    item = (prepared.name, prepared.read_bytes(), "image/jpeg")
+    cache[src] = item
+    return item
+
+
+async def _prefetch_uploads(
+    session: IdGodHttpSession,
+    orderer: IdGodOrderer,
+    people: list[Person],
+    cache: ImageCache,
+) -> None:
+    urls: list[str] = []
+    for person in people:
+        for src, fb in (
+            (person.photo, orderer.fallback_photo),
+            (person.signature, orderer.fallback_signature),
+        ):
+            if src and src not in cache:
+                urls.append(src)
+            elif not src and fb and fb not in cache:
+                urls.append(fb)
+
+    async def _one(url: str) -> None:
+        await _download_upload_file(session, orderer, url, "", cache)
+
+    if urls:
+        await asyncio.gather(*[_one(u) for u in dict.fromkeys(urls)])
+
+
+def _files_for_person(
+    person: Person,
+    orderer: IdGodOrderer,
+    cache: ImageCache,
+) -> dict[str, UploadFile]:
+    files: dict[str, UploadFile] = {}
+    photo_key = person.photo or orderer.fallback_photo
+    if photo_key and photo_key in cache:
+        files["picture"] = cache[photo_key]
+    sig_key = person.signature or orderer.fallback_signature
+    if sig_key and sig_key in cache:
+        files["signature"] = cache[sig_key]
+    return files
 
 
 def _state_options_from_form(form: dict[str, Any]) -> list[StateOption]:
@@ -139,13 +229,22 @@ async def _add_person_http(
     person: Person,
     *,
     checkout: bool,
+    cache: ImageCache,
+    order_ctx: dict[str, Any],
+    verify_cart: bool,
 ) -> OrderResult:
-    _, html, forms = await session.get_page(ORDER_URL)
-    form = find_form(forms, ORDER_FORM_ID)
-    if not form:
-        return OrderResult(person=person, success=False, message="order-form not found")
+    if order_ctx.get("form") and order_ctx.get("csrf"):
+        form = order_ctx["form"]
+        csrf = order_ctx["csrf"]
+    else:
+        _, html, forms = await session.get_page(ORDER_URL)
+        form = find_form(forms, ORDER_FORM_ID)
+        if not form:
+            return OrderResult(person=person, success=False, message="order-form not found")
+        csrf = extract_csrf(html, form)
+        order_ctx["form"] = form
+        order_ctx["csrf"] = csrf
 
-    csrf = extract_csrf(html, form)
     if not csrf:
         return OrderResult(person=person, success=False, message="CSRF token missing")
 
@@ -156,25 +255,35 @@ async def _add_person_http(
     if orderer.ui:
         orderer.ui.detail(f"HTTP submit: {person.display_name}")
 
-    photo_path = await _resolve_image(
-        person.photo, orderer.fallback_photo, orderer._active_proxy
-    )
-    files: dict[str, tuple[str, bytes, str]] = {
-        "picture": (photo_path.name, photo_path.read_bytes(), "image/jpeg"),
-    }
-    if person.signature or orderer.fallback_signature:
-        try:
-            sig_path = await _resolve_image(
-                person.signature, orderer.fallback_signature, orderer._active_proxy
+    try:
+        if person.photo or orderer.fallback_photo:
+            await _download_upload_file(
+                session, orderer, person.photo, orderer.fallback_photo, cache
             )
-            files["signature"] = (sig_path.name, sig_path.read_bytes(), "image/jpeg")
-        except Exception:
-            pass
+        if person.signature or orderer.fallback_signature:
+            await _download_upload_file(
+                session, orderer, person.signature, orderer.fallback_signature, cache
+            )
+    except Exception as e:
+        return OrderResult(person=person, success=False, message=str(e))
+
+    files = _files_for_person(person, orderer, cache)
+    if "picture" not in files:
+        return OrderResult(person=person, success=False, message="Photo upload missing")
 
     fields["action"] = "2" if checkout else "1"
     post_url = form_action_url(form, ORDER_URL)
     resp = await session.post_form(post_url, referer=ORDER_URL, data=fields, files=files)
     body = resp.text
+
+    if resp.status_code == 403 and "csrf" in body.lower():
+        order_ctx.pop("form", None)
+        order_ctx.pop("csrf", None)
+        return await _add_person_http(
+            session, orderer, person,
+            checkout=checkout, cache=cache, order_ctx=order_ctx, verify_cart=verify_cart,
+        )
+
     err = extract_order_error(body)
     if err:
         return OrderResult(
@@ -184,23 +293,23 @@ async def _add_person_http(
             state_selected=state_label,
         )
 
-    _, cart_html, _ = await session.get_page(CART_URL)
-    total, count, empty = read_cart_total(cart_html)
-    if empty or not count:
-        return OrderResult(
-            person=person,
-            success=False,
-            message=_extract_order_error(body) or "Add-to-cart failed — cart still empty",
-            state_selected=state_label,
-        )
-
-    if checkout and not re.search(r"id_email|id_name", cart_html, re.I):
-        return OrderResult(
-            person=person,
-            success=False,
-            message="Checkout redirect but cart form missing",
-            state_selected=state_label,
-        )
+    if verify_cart:
+        _, cart_html, _ = await session.get_page(CART_URL)
+        total, count, empty = read_cart_total(cart_html)
+        if empty or not count:
+            return OrderResult(
+                person=person,
+                success=False,
+                message=_extract_order_error(body) or "Add-to-cart failed — cart still empty",
+                state_selected=state_label,
+            )
+        if checkout and not re.search(r"id_email|id_name", cart_html, re.I):
+            return OrderResult(
+                person=person,
+                success=False,
+                message="Checkout redirect but cart form missing",
+                state_selected=state_label,
+            )
 
     return OrderResult(
         person=person,
@@ -517,11 +626,17 @@ async def submit_http(orderer: IdGodOrderer, people: list[Person]) -> CheckoutRe
         )
 
     results: list[OrderResult] = []
+    image_cache: ImageCache = {}
+    order_ctx: dict[str, Any] = {}
     try:
         async with IdGodHttpSession(proxy=proxy, timeout=orderer.timeout_ms / 1000) as session:
             if orderer.ui:
                 orderer.ui.phase("HTTP")
                 orderer.ui.ok("Session ready (no browser)")
+
+            prefetch_started = time.time()
+            await _prefetch_uploads(session, orderer, people, image_cache)
+            timings["prefetch_images_ms"] = int((time.time() - prefetch_started) * 1000)
 
             add_started = time.time()
             for i, person in enumerate(people):
@@ -533,6 +648,9 @@ async def submit_http(orderer: IdGodOrderer, people: list[Person]) -> CheckoutRe
                     orderer,
                     person,
                     checkout=is_last and orderer.checkout,
+                    cache=image_cache,
+                    order_ctx=order_ctx,
+                    verify_cart=is_last,
                 )
                 results.append(result)
                 if not result.success:
@@ -605,7 +723,13 @@ async def submit_http(orderer: IdGodOrderer, people: list[Person]) -> CheckoutRe
             payment_url = str(finish_resp.url) if finish_resp else CART_URL
             payment_details = PaymentDetails(invoice_url=payment_url)
             if finish_resp and ("btcpay" in payment_url.lower() or orderer.fetch_payment):
-                payment_details = parse_btcpay_html(finish_resp.text, payment_url)
+                payment_details = await fetch_btcpay_http(
+                    session.client,
+                    payment_url,
+                    timeout=min(30.0, orderer.timeout_ms / 1000),
+                )
+                if not payment_details.invoice_url:
+                    payment_details.invoice_url = payment_url
                 if payment_details.invoice_url:
                     payment_url = payment_details.invoice_url
 

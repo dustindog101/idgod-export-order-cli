@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import re
+from datetime import datetime, timedelta
 from dataclasses import dataclass, field
 from typing import Any
 from urllib.parse import parse_qs, urlparse
@@ -65,7 +66,7 @@ class PaymentDetails:
         if self.pay_in_wallet_url:
             lines.append(f"Wallet link: {self.pay_in_wallet_url}")
         if self.expiry_text:
-            lines.append(f"Expires in: {self.expiry_text}")
+            lines.append(f"Expires at: {self.expiry_text}")
         if self.order_number:
             lines.append(f"Order number: {self.order_number}")
         if self.order_status_url:
@@ -93,6 +94,38 @@ def _is_vue_placeholder(value: str) -> bool:
 
 def _clean_field(value: str) -> str:
     return "" if _is_vue_placeholder(value) else (value or "").strip()
+
+
+def _parse_expiry_timer_text(text: str) -> int | None:
+    text = (text or "").strip()
+    if not text:
+        return None
+    parts = text.split(":")
+    try:
+        if len(parts) == 2:
+            return int(parts[0]) * 60 + int(parts[1])
+        if len(parts) == 3:
+            return int(parts[0]) * 3600 + int(parts[1]) * 60 + int(parts[2])
+    except ValueError:
+        return None
+    return None
+
+
+def format_expiry_time(
+    *,
+    expiration_seconds: int | None = None,
+    timer_text: str = "",
+    now: datetime | None = None,
+) -> str:
+    seconds = expiration_seconds
+    if seconds is None and timer_text:
+        seconds = _parse_expiry_timer_text(timer_text)
+    if not seconds or seconds <= 0:
+        return timer_text or ""
+    now = now or datetime.now().astimezone()
+    expires = now + timedelta(seconds=seconds)
+    time_part = expires.strftime("%I:%M %p").lstrip("0")
+    return f"{expires.strftime('%b %d, %Y')} {time_part}"
 
 
 def _attr(pattern: str, html: str, group: int = 1) -> str:
@@ -146,6 +179,20 @@ def parse_btcpay_html(html: str, url: str = "") -> PaymentDetails:
     order_status_url = str(srv.get("merchantRefLink") or "")
     order_number = str(srv.get("orderId") or "")
 
+    expiration_seconds: int | None = None
+    if srv:
+        raw_exp = srv.get("expirationSeconds")
+        if raw_exp is not None:
+            try:
+                expiration_seconds = int(raw_exp)
+            except (TypeError, ValueError):
+                expiration_seconds = None
+
+    expiry_display = format_expiry_time(
+        expiration_seconds=expiration_seconds,
+        timer_text=expiry,
+    )
+
     if srv:
         if not amount_due_btc:
             amount_due_btc = str(srv.get("due") or srv.get("orderAmount") or "")
@@ -182,7 +229,7 @@ def parse_btcpay_html(html: str, url: str = "") -> PaymentDetails:
         btc_address=btc_address,
         pay_in_wallet_url=pay_wallet,
         payment_method=payment_method,
-        expiry_text=expiry,
+        expiry_text=expiry_display,
         order_number=order_number,
         order_status_url=order_status_url,
         raw_fields=raw,
@@ -216,3 +263,33 @@ async def fetch_btcpay_from_page(page, *, timeout_ms: int = 30000) -> PaymentDet
         pass
 
     return parse_btcpay_html(await page.content(), url)
+
+
+async def fetch_btcpay_http(
+    client: Any,
+    url: str,
+    *,
+    timeout: float = 30.0,
+    poll_interval: float = 0.8,
+) -> PaymentDetails:
+    """Fetch a BTCPay invoice page over httpx; poll until key fields render."""
+    import asyncio
+    import time
+
+    deadline = time.time() + timeout
+    best = PaymentDetails(invoice_url=url)
+    while time.time() < deadline:
+        resp = await client.get(url, headers={"Accept": "text/html"})
+        if resp.status_code >= 400:
+            break
+        details = parse_btcpay_html(resp.text, str(resp.url))
+        if details.populated:
+            best = details
+            if details.btc_address and details.amount_due_btc and details.exchange_rate:
+                return details
+            if details.btc_address and details.amount_due_btc and (
+                details.exchange_rate or details.expiry_text
+            ):
+                return details
+        await asyncio.sleep(poll_interval)
+    return best

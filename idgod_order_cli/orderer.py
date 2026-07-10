@@ -840,12 +840,13 @@ class IdGodOrderer:
         if await update.count() and filled:
             if self.ui:
                 self.ui.step("Updating cart")
+            await update.click()
+            # Cart UPDATE is a same-page POST — no navigation event; don't wait 60s.
             try:
-                async with page.expect_navigation(timeout=self.timeout_ms):
-                    await update.click()
+                await page.wait_for_load_state("domcontentloaded", timeout=8000)
             except Exception:
-                await update.click()
-                await page.wait_for_timeout(2500)
+                pass
+            await page.wait_for_timeout(600)
             filled.append("cart_update")
 
         total_after, _ = await self._read_totals(page)
