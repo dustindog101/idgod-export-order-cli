@@ -7,8 +7,8 @@ from typing import Any
 # Export columns that must never be sent to idgod.ph
 EXPORT_ONLY_FIELDS = frozenset({
     "order id", "account", "order date", "status", "payment",
-    "payment method", "shipping", "tracking #", "tracking",
-    "order note", "export note", "order total",
+    "payment method", "shipping", "shipping address", "tracking #", "tracking",
+    "order note", "export note", "order total", "note", "product id", "id #",
 })
 
 FIELD_ALIASES: dict[str, str] = {
@@ -19,11 +19,15 @@ FIELD_ALIASES: dict[str, str] = {
     "dob": "dob",
     "date of birth": "dob",
     "issue date": "issue_date",
+    "custom dl# / dd# / iss / exp": "issue_date",
+    "iss / exp": "issue_date",
     "street": "street",
+    "street address": "street",
     "address": "street",
     "address1": "street",
     "city": "city",
     "zip": "zip",
+    "zip code": "zip",
     "zip+4": "zip4",
     "sex": "sex",
     "gender": "sex",
@@ -34,9 +38,11 @@ FIELD_ALIASES: dict[str, str] = {
     "hair color": "hair_color",
     "hair": "hair_color",
     "photo url": "photo",
+    "photo link": "photo",
     "photo": "photo",
     "picture": "photo",
     "signature url": "signature",
+    "signature link": "signature",
     "signature": "signature",
     "state variant": "state_variant",
     "email": "email",
@@ -63,7 +69,10 @@ class Person:
     photo: str = ""
     signature: str = ""
     state_variant: str = ""
+    product_id: str = ""
     email: str = ""
+    shipping_raw: str = ""
+    local_delivery: bool = False
     source_row: int | None = None
     export_order_id: str = ""
 
@@ -91,10 +100,51 @@ class Person:
             "photo": self.photo,
             "signature": self.signature,
             "state_variant": self.state_variant,
+            "product_id": self.product_id,
             "display_name": self.display_name,
+            "shipping_raw": self.shipping_raw,
+            "local_delivery": self.local_delivery,
             "source_row": self.source_row,
             "export_order_id": self.export_order_id,
         }
+
+
+@dataclass
+class ExportMeta:
+    exported_at: str = ""
+    export_note: str = ""
+    shipping_override: str | None = None
+    order_count: int = 0
+    id_row_count: int = 0
+
+
+@dataclass
+class OrderBatch:
+    order_id: str
+    people: list[Person]
+    shipping_raw: str = ""
+    local_delivery: bool = False
+    status: str = ""
+    order_note: str = ""
+    export_note: str = ""
+    tracking_number: str = ""
+
+    @property
+    def id_count(self) -> int:
+        return len(self.people)
+
+
+@dataclass
+class ExportBundle:
+    meta: ExportMeta
+    batches: list[OrderBatch]
+
+    @property
+    def people(self) -> list[Person]:
+        out: list[Person] = []
+        for batch in self.batches:
+            out.extend(batch.people)
+        return out
 
 
 @dataclass
@@ -117,6 +167,10 @@ class ShippingInfo:
     def last_name(self) -> str:
         parts = self.name.split()
         return " ".join(parts[1:]) if len(parts) > 1 else ""
+
+    @property
+    def is_local_delivery(self) -> bool:
+        return self.raw.strip().lower() == "local delivery"
 
     def to_dict(self) -> dict[str, Any]:
         return {

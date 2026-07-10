@@ -1,8 +1,8 @@
-# Spreadsheet column mapping (`orders-*.xlsx`)
+# Spreadsheet / JSON export mapping
 
-Analyzed from `orders-2026-07-08.xlsx` (4 people, 1 shared checkout).
+Supports the **vendor-safe export** (`EXPORT-SPEC.md`): nested JSON `orders[].ids[]` and flat XLSX `Orders` sheet (25 columns). Legacy CSV/flat JSON still work.
 
-## Per-person fields (each row can differ)
+## Per-person fields (each row / id object)
 
 Maps to the ID order form. If idgod lists multiple dropdown options for a state, the CLI **picks the cheapest match by default** (override with `--state-variant`).
 
@@ -15,18 +15,24 @@ Maps to the ID order form. If idgod lists multiple dropdown options for a state,
 | Street / City / ZIP | **ID address** (Seattle) | different per person |
 | Sex, Height, Weight | physical | different |
 | Eye Color, Hair Color | appearance | Brown/Brown vs Green/Blond |
-| Photo URL, Signature URL | uploads | unique per row |
+| Photo URL / `photoUrl` | uploads | unique per row |
+| Signature URL / `signatureUrl` | uploads | unique per row |
+| Product ID / `productId` | state dropdown variant | e.g. `Washington`, `CA:DMV_POLY` → polycarbonate |
 
-## Checkout-only (one address for whole cart)
+Vendor template columns (`PHOTO LINK`, `STREET ADDRESS`, `ZIP CODE`, …) still map via aliases.
 
-| Column | Used for |
+## Checkout (from export, not CLI flags)
+
+| Source | Used for |
 |--------|----------|
-| Shipping | Parsed → cart `#id_name`, `#id_address`, etc. (Oakland, CA) |
-| `--email` | Cart email (not in export; pass on CLI) |
+| `Shipping Address` / `shippingAddress` | Cart name, street, city, state, zip |
+| JSON `shippingOverride` (non-null) | Same address for every order in file |
+| `--email` | Cart email (required for checkout) |
+| `Local Delivery` | Pickup — CLI fills email/payment only; use `--shipping` to override |
 
-## Ignored (export metadata only)
+## Ignored metadata
 
-Order ID, Account, Order Date, Status, Payment, Payment Method, Tracking #, Order Note, Export Note, Order Total
+Order ID, Status, Tracking #, Order Note, Export Note, ID #, Account, etc.
 
 ## CLI input modes
 

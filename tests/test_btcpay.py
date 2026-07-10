@@ -22,6 +22,8 @@ def test_parse_btcpay_fixture(btcpay_html: str):
     assert details.btc_address.lower().startswith("bc1q")
     assert "bitcoin:" in details.pay_in_wallet_url
     assert details.exchange_rate.startswith("$")
+    assert details.order_number == "902874"
+    assert details.order_status_url == "https://www.idgod.ph/order/05ffd3ef-c8e5-4bb6-b525-5841a35af913"
     assert details.summary_lines()
 
 

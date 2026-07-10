@@ -8,9 +8,19 @@ import sys
 from pathlib import Path
 
 from .cache import OrderCache, default_cache_dir
-from .models import Person, ShippingInfo
-from .orderer import IdGodOrderer, DEFAULT_DISCOUNT, ORDER_URL
-from .parser import extract_shipping_text, parse_file, parse_shipping_text, person_from_flags
+from .btcpay import PaymentDetails, parse_btcpay_html
+from .models import ExportBundle, OrderBatch, Person, ShippingInfo
+from .orderer import IdGodOrderer, DEFAULT_DISCOUNT, ORDER_URL, USER_AGENT
+from .parser import (
+    extract_shipping_text,
+    merge_batches,
+    parse_export_file,
+    parse_file,
+    parse_shipping_text,
+    person_from_flags,
+    shipping_choices_from_batches,
+    shipping_for_batch,
+)
 from .proxies import (
     ProxyConfig,
     TorManager,
@@ -101,6 +111,16 @@ def _add_person_args(p: argparse.ArgumentParser) -> None:
     ov.add_argument("--shipping-state", default="")
     ov.add_argument("--shipping-zip", default="")
     ov.add_argument("--shipping-country", default="")
+    ov.add_argument(
+        "--multi-checkout",
+        action="store_true",
+        help="Multiple export shipping addresses: separate checkout per order",
+    )
+    ov.add_argument(
+        "--single-checkout",
+        action="store_true",
+        help="Multiple export shipping addresses: one cart using the first export address",
+    )
 
     adv = p.add_argument_group("advanced")
     adv.add_argument("--dry-run", action="store_true", help="Parse file only; no browser")
@@ -117,9 +137,14 @@ def _add_person_args(p: argparse.ArgumentParser) -> None:
         "--captcha-solver",
         choices=["auto", "ppllocr", "ddddocr", "2captcha", "manual"],
         default="auto",
-        help=argparse.SUPPRESS,
+        help="auto=ddddocr+ppllocr+preprocess (default); 2captcha if API key set",
     )
-    adv.add_argument("--captcha-attempts", type=int, default=10, help=argparse.SUPPRESS)
+    adv.add_argument(
+        "--captcha-attempts",
+        type=int,
+        default=15,
+        help="Captcha submit retries with fresh images (default: 15)",
+    )
     adv.add_argument("--2captcha-key", dest="twocaptcha_key", default="", help=argparse.SUPPRESS)
 
     # Single-person mode (no file)
@@ -176,6 +201,17 @@ def build_parser() -> argparse.ArgumentParser:
     cache_p.add_argument("--json", action="store_true")
     cache_p.add_argument("--cache-dir", default="", help=argparse.SUPPRESS)
 
+    invoice_p = sub.add_parser(
+        "invoice",
+        help="Look up a BTCPay invoice (order #, status page, BTC address)",
+    )
+    invoice_p.add_argument(
+        "invoice_ref",
+        help="Full BTCPay URL or invoice id (e.g. 8oDSQNud6WzNy4ASS9ZMEY)",
+    )
+    invoice_p.add_argument("--json", action="store_true")
+    _add_proxy_args(invoice_p)
+
     return root
 
 
@@ -190,10 +226,46 @@ def _parse_state_variants(items: list[str]) -> dict[str, str]:
     return out
 
 
+def _load_export(args: argparse.Namespace) -> ExportBundle | None:
+    path_str = args.file_flag or args.file
+    if not path_str:
+        return None
+    return parse_export_file(Path(path_str))
+
+
+def _apply_limit_batches(batches: list[OrderBatch], limit: int) -> list[OrderBatch]:
+    if not limit or limit <= 0:
+        return batches
+    out: list[OrderBatch] = []
+    remaining = limit
+    for batch in batches:
+        if remaining <= 0:
+            break
+        if len(batch.people) <= remaining:
+            out.append(batch)
+            remaining -= len(batch.people)
+        else:
+            out.append(
+                OrderBatch(
+                    order_id=batch.order_id,
+                    people=batch.people[:remaining],
+                    shipping_raw=batch.shipping_raw,
+                    local_delivery=batch.local_delivery,
+                    status=batch.status,
+                    order_note=batch.order_note,
+                    export_note=batch.export_note,
+                    tracking_number=batch.tracking_number,
+                )
+            )
+            remaining = 0
+    return out
+
+
 def _load_people(args: argparse.Namespace) -> list[Person]:
     path_str = args.file_flag or args.file
     if path_str:
-        people = parse_file(Path(path_str))
+        bundle = parse_export_file(Path(path_str))
+        people = bundle.people
         if args.limit and args.limit > 0:
             people = people[: args.limit]
         return people
@@ -225,13 +297,24 @@ def _load_people(args: argparse.Namespace) -> list[Person]:
     )
 
 
-def _load_shipping(args: argparse.Namespace, people: list[Person]) -> ShippingInfo:
+def _load_shipping(
+    args: argparse.Namespace,
+    people: list[Person],
+    *,
+    bundle: ExportBundle | None = None,
+    batch: OrderBatch | None = None,
+) -> ShippingInfo:
     path_str = args.file_flag or args.file
     raw_shipping = args.shipping
+    if not raw_shipping and batch is not None:
+        shipping = shipping_for_batch(batch, bundle, cli_override="")
+        raw_shipping = shipping.raw
     if not raw_shipping and path_str:
         raw_shipping = extract_shipping_text(Path(path_str))
 
-    shipping = parse_shipping_text(raw_shipping)
+    shipping = parse_shipping_text(raw_shipping) if raw_shipping else ShippingInfo()
+    if batch is not None and batch.local_delivery and not args.shipping:
+        shipping = parse_shipping_text(batch.shipping_raw)
     if args.email:
         shipping.email = args.email
     elif people:
@@ -251,6 +334,117 @@ def _load_shipping(args: argparse.Namespace, people: list[Person]) -> ShippingIn
         shipping.country = args.shipping_country
 
     return shipping
+
+
+def _short_address(raw: str, *, max_len: int = 72) -> str:
+    text = " ".join(raw.split())
+    if len(text) <= max_len:
+        return text
+    return text[: max_len - 1] + "…"
+
+
+def _prompt_shipping_choice(choices: list) -> tuple[str, int | None]:
+    """Return ('multi', None) or ('single', index)."""
+    print("\nMultiple shipping addresses in this export:\n")
+    for i, choice in enumerate(choices, start=1):
+        suffix = " (Local Delivery)" if choice.local_delivery else ""
+        print(f"  [{i}] {choice.id_count} ID(s){suffix}")
+        print(f"      {_short_address(choice.raw)}")
+    print("\n  [m] Separate checkout per export order")
+    print("  [1-{}] Use one address for ALL IDs (single cart)".format(len(choices)))
+    print("  [a] Abort\n")
+    try:
+        ans = input("Shipping choice [m/1/a]: ").strip().lower()
+    except EOFError:
+        return "abort", None
+    if ans in ("a", "abort", "n", "no"):
+        return "abort", None
+    if ans in ("m", "multi", "multiple", ""):
+        return "multi", None
+    if ans.isdigit():
+        idx = int(ans)
+        if 1 <= idx <= len(choices):
+            return "single", idx - 1
+    print("Invalid choice.")
+    return "abort", None
+
+
+def _resolve_batch_plan(
+    args: argparse.Namespace,
+    batches: list[OrderBatch],
+    bundle: ExportBundle | None,
+) -> tuple[list[OrderBatch], list[str]]:
+    notes: list[str] = []
+    active = [b for b in batches if b.people]
+    if not active:
+        return batches, notes
+
+    if args.multi_checkout and args.single_checkout:
+        raise SystemExit("Error: use only one of --multi-checkout or --single-checkout")
+
+    if args.shipping:
+        choices = shipping_choices_from_batches(active)
+        notes.append("CLI --shipping overrides all export shipping addresses")
+        if len(choices) > 1:
+            notes.append(f"  Overriding {len(choices)} different export address(es):")
+            for i, choice in enumerate(choices, start=1):
+                notes.append(f"    was [{i}] {_short_address(choice.raw)} ({choice.id_count} ID(s))")
+        ship = parse_shipping_text(args.shipping)
+        notes.append(f"  Using: {_short_address(ship.raw or args.shipping)}")
+        return merge_batches(active, args.shipping), notes
+
+    if bundle and bundle.meta.shipping_override:
+        notes.append("Export shippingOverride applied to every order")
+        notes.append(f"  {_short_address(bundle.meta.shipping_override)}")
+
+    choices = shipping_choices_from_batches(active)
+    if len(choices) <= 1:
+        return batches, notes
+
+    notes.append(f"Multiple shipping addresses detected ({len(choices)})")
+    for i, choice in enumerate(choices, start=1):
+        notes.append(f"  [{i}] {choice.id_count} ID(s) — {_short_address(choice.raw)}")
+
+    if args.multi_checkout:
+        notes.append("Mode: separate checkout per export order (--multi-checkout)")
+        return batches, notes
+
+    if args.single_checkout:
+        raw = choices[0].raw
+        notes.append("Mode: single checkout for all IDs (--single-checkout)")
+        notes.append(f"  Using export address [1]: {_short_address(raw)}")
+        return merge_batches(active, raw), notes
+
+    if _should_skip_confirm(args):
+        notes.append("Mode: separate checkout per export order (default with -y / non-interactive)")
+        return batches, notes
+
+    mode, index = _prompt_shipping_choice(choices)
+    if mode == "abort":
+        raise SystemExit("Aborted.")
+    if mode == "single" and index is not None:
+        raw = choices[index].raw
+        notes.append("Mode: single checkout for all IDs (selected at prompt)")
+        notes.append(f"  Using export address [{index + 1}]: {_short_address(raw)}")
+        return merge_batches(active, raw), notes
+
+    notes.append("Mode: separate checkout per export order (selected at prompt)")
+    return batches, notes
+
+
+def _announce_shipping_plan(notes: list[str], ui: RunUI | None = None) -> None:
+    if not notes:
+        return
+    if ui:
+        ui.phase("Shipping plan")
+        for line in notes:
+            ui.warn(line)
+    else:
+        print("\nShipping plan", flush=True)
+        print("─" * 40, flush=True)
+        for line in notes:
+            print(line, flush=True)
+        print(flush=True)
 
 
 def _print_result(result, as_json: bool, *, verbose: bool = False) -> None:
@@ -323,6 +517,74 @@ def _collect_proxies(args: argparse.Namespace) -> list[ProxyConfig]:
     return proxies
 
 
+async def _cmd_invoice(args: argparse.Namespace) -> int:
+    ref = args.invoice_ref.strip()
+    if ref.startswith("http"):
+        url = ref
+    else:
+        url = f"https://btcpay.idgod.ph/invoice?id={ref}"
+
+    tor_mgr = TorManager()
+    proxy: ProxyConfig | None = None
+    try:
+        if args.tor:
+            proxy = tor_mgr.start()
+        else:
+            proxies = _collect_proxies(args)
+            if proxies:
+                proxy = proxies[0]
+
+        import httpx
+
+        client_kwargs: dict = {
+            "follow_redirects": True,
+            "timeout": 45.0,
+            "headers": {"User-Agent": USER_AGENT},
+        }
+        if proxy:
+            client_kwargs["proxy"] = proxy.to_httpx()
+
+        async with httpx.AsyncClient(**client_kwargs) as client:
+            resp = await client.get(url)
+            resp.raise_for_status()
+            details = parse_btcpay_html(resp.text, str(resp.url))
+    except Exception as e:
+        print(f"Failed to fetch invoice: {e}", file=sys.stderr)
+        return 1
+    finally:
+        tor_mgr.stop()
+
+    if args.json:
+        print(json.dumps(details.to_dict(), indent=2))
+        return 0 if details.populated else 1
+
+    if not details.populated:
+        print("Could not parse payment details from that page.", file=sys.stderr)
+        return 1
+
+    print(format_invoice_human(details))
+    return 0
+
+
+def format_invoice_human(details: PaymentDetails) -> str:
+    lines = ["Payment details", "─" * 40]
+    if details.order_number:
+        lines.append(f"  Order #     {details.order_number}")
+    if details.order_status_url:
+        lines.append(f"  Status page {details.order_status_url}")
+    if details.invoice_url:
+        lines.append(f"  Invoice     {details.invoice_url}")
+    if details.amount_due_display or details.amount_due_btc:
+        lines.append(f"  Amount      {details.amount_due_display or details.amount_due_btc}")
+    if details.total_fiat:
+        lines.append(f"  Fiat        {details.total_fiat}")
+    if details.btc_address:
+        lines.append(f"  Address     {details.btc_address}")
+    if details.pay_in_wallet_url:
+        lines.append(f"  Wallet      {details.pay_in_wallet_url}")
+    return "\n".join(lines)
+
+
 async def _cmd_cache(args: argparse.Namespace) -> int:
     cache = OrderCache(args.cache_dir)
     entries = cache.list_entries(limit=args.limit)
@@ -341,28 +603,44 @@ async def _cmd_cache(args: argparse.Namespace) -> int:
         print(f"{ok}  {e.get('saved_at', '?')}  {ids}  {total_s}")
         if e.get("payment_url"):
             print(f"    {e['payment_url']}")
+        pd = e.get("payment_details") or {}
+        if isinstance(pd, dict) and pd.get("order_status_url"):
+            print(f"    status: {pd['order_status_url']}")
+        if isinstance(pd, dict) and pd.get("order_number"):
+            print(f"    order #: {pd['order_number']}")
     return 0
 
 
 async def _cmd_order(args: argparse.Namespace) -> int:
+    path_str = args.file_flag or args.file or ""
+    bundle = _load_export(args) if path_str else None
     people = _load_people(args)
+    batches = _apply_limit_batches(bundle.batches, args.limit) if bundle else [
+        OrderBatch(order_id="", people=people)
+    ]
+    batches, shipping_notes = _resolve_batch_plan(args, batches, bundle)
+    people = [p for b in batches for p in b.people]
     full_order = not args.dry_run
 
     if full_order and not args.payment_method:
         args.payment_method = "bitcoin"
 
-    shipping = _load_shipping(args, people) if full_order else ShippingInfo()
-
-    if full_order and not shipping.email:
+    if full_order and not args.email:
         raise SystemExit(
             "Error: --email is required for checkout (payment instructions are sent there).\n"
             "  idgod-order order orders.xlsx --tor --email you@proton.me ..."
         )
 
+    ui = RunUI(json_mode=args.json)
+    _announce_shipping_plan(shipping_notes, ui)
+
     if not _should_skip_confirm(args):
-        names = ", ".join(p.display_name for p in people)
-        print(f"Submit {len(people)} ID(s) to idgod.ph: {names}")
-        print(f"Coupon: {args.discount} · Email: {shipping.email}")
+        batch_desc = f"{len([b for b in batches if b.people])} checkout(s), {len(people)} ID(s)"
+        names = ", ".join(p.display_name for p in people[:4])
+        if len(people) > 4:
+            names += f", … +{len(people) - 4} more"
+        print(f"Submit {batch_desc} to idgod.ph: {names}")
+        print(f"Coupon: {args.discount} · Email: {args.email}")
         routing = "Tor" if args.tor else ("proxy" if (args.proxy or args.proxy_file) else "direct")
         print(f"Route: {routing}")
         try:
@@ -373,8 +651,6 @@ async def _cmd_order(args: argparse.Namespace) -> int:
             print("Aborted.")
             return 1
 
-    path_str = args.file_flag or args.file or ""
-    ui = RunUI(json_mode=args.json)
     routing = "Tor" if args.tor else (
         f"proxy" if (args.proxy or args.proxy_file) else "direct"
     )
@@ -401,7 +677,7 @@ async def _cmd_order(args: argparse.Namespace) -> int:
         captcha_solver=args.captcha_solver,
         twocaptcha_key=args.twocaptcha_key,
         captcha_attempts=args.captcha_attempts,
-        shipping=shipping,
+        shipping=ShippingInfo(),
         payment_method=args.payment_method,
         shipping_method=args.shipping_method,
         debug_dir=args.debug_dir,
@@ -412,12 +688,36 @@ async def _cmd_order(args: argparse.Namespace) -> int:
         ui=ui,
     )
 
-    result = await orderer.submit(people)
-    _print_result(result, args.json, verbose=args.verbose)
-    return 0 if result.success else 1
+    last_result = None
+    for batch_index, batch in enumerate(batches, start=1):
+        if not batch.people:
+            if ui and batch.order_id:
+                ui.warn(f"Order {batch.order_id}: 0 IDs — skipped")
+            continue
+        if len(batches) > 1 and ui:
+            ui.phase(f"Checkout {batch_index}/{len(batches)}")
+            if batch.order_id:
+                ui.detail(f"Export order {batch.order_id} · {len(batch.people)} ID(s)")
+            if batch.shipping_raw and not args.shipping:
+                ui.detail(f"Shipping: {_short_address(batch.shipping_raw)}")
+        elif len(batches) == 1 and ui and (args.shipping or batch.shipping_raw):
+            ship_label = args.shipping or batch.shipping_raw
+            ui.detail(f"Shipping: {_short_address(ship_label)}")
+        shipping = _load_shipping(args, batch.people, bundle=bundle, batch=batch)
+        orderer.shipping = shipping
+        last_result = await orderer.submit(batch.people)
+        if not last_result.success:
+            _print_result(last_result, args.json, verbose=args.verbose)
+            return 1
+
+    if last_result is None:
+        print("No IDs to process.")
+        return 1
+    _print_result(last_result, args.json, verbose=args.verbose)
+    return 0 if last_result.success else 1
 
 
-_SUBCOMMANDS = frozenset({"order", "probe", "cache", "-h", "--help"})
+_SUBCOMMANDS = frozenset({"order", "probe", "cache", "invoice", "-h", "--help"})
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -433,6 +733,8 @@ def main(argv: list[str] | None = None) -> int:
         return asyncio.run(_cmd_probe(args))
     if args.command == "cache":
         return asyncio.run(_cmd_cache(args))
+    if args.command == "invoice":
+        return asyncio.run(_cmd_invoice(args))
     return asyncio.run(_cmd_order(args))
 
 

@@ -1,3 +1,5 @@
+from pathlib import Path
+
 from idgod_order_cli.parser import (
     extract_shipping_text,
     parse_file,
@@ -35,6 +37,23 @@ def test_parse_shipping_line():
     assert ship.city == "Oakland"
     assert ship.state == "CA"
     assert ship.zip == "94619"
+
+
+def test_parse_vendor_column_aliases(tmp_path):
+    path = tmp_path / "vendor.csv"
+    path.write_text(
+        (Path(__file__).parent / "fixtures" / "vendor-order.csv").read_text(encoding="utf-8"),
+        encoding="utf-8",
+    )
+    people = parse_file(path)
+    assert len(people) == 2
+    assert people[0].first_name == "Anaya"
+    assert people[0].street == "5125 NE Latimer Place"
+    assert people[0].zip == "98105"
+    assert people[0].photo == "https://example.com/anaya-photo.webp"
+    assert people[0].signature == "https://example.com/anaya-sig.webp"
+    assert people[0].issue_date == "05/28/2026"
+    assert people[1].photo == "https://example.com/josie-photo.webp"
 
 
 def test_parse_json_people_list(tmp_path):

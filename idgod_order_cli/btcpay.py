@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import re
 from dataclasses import dataclass, field
 from typing import Any
@@ -23,6 +24,8 @@ class PaymentDetails:
     pay_in_wallet_url: str = ""
     payment_method: str = ""
     expiry_text: str = ""
+    order_number: str = ""
+    order_status_url: str = ""
     raw_fields: dict[str, str] = field(default_factory=dict)
 
     @property
@@ -44,6 +47,8 @@ class PaymentDetails:
             "pay_in_wallet_url": self.pay_in_wallet_url,
             "payment_method": self.payment_method,
             "expiry_text": self.expiry_text,
+            "order_number": self.order_number,
+            "order_status_url": self.order_status_url,
             "raw_fields": self.raw_fields,
         }
 
@@ -61,6 +66,10 @@ class PaymentDetails:
             lines.append(f"Wallet link: {self.pay_in_wallet_url}")
         if self.expiry_text:
             lines.append(f"Expires in: {self.expiry_text}")
+        if self.order_number:
+            lines.append(f"Order number: {self.order_number}")
+        if self.order_status_url:
+            lines.append(f"Order status: {self.order_status_url}")
         return lines
 
 
@@ -77,9 +86,28 @@ def extract_invoice_id(url: str) -> str:
     return ""
 
 
+def _is_vue_placeholder(value: str) -> bool:
+    v = (value or "").strip()
+    return bool(v) and ("model." in v or "srvModel." in v or "{{" in v)
+
+
+def _clean_field(value: str) -> str:
+    return "" if _is_vue_placeholder(value) else (value or "").strip()
+
+
 def _attr(pattern: str, html: str, group: int = 1) -> str:
     m = re.search(pattern, html, re.I | re.S)
-    return (m.group(group) if m else "").strip()
+    return _clean_field((m.group(group) if m else "").strip())
+
+
+def _parse_initial_srv_model(html: str) -> dict[str, Any]:
+    m = re.search(r"const initialSrvModel = (\{.*?\});\s*\n", html, re.S)
+    if not m:
+        return {}
+    try:
+        return json.loads(m.group(1))
+    except json.JSONDecodeError:
+        return {}
 
 
 def parse_btcpay_html(html: str, url: str = "") -> PaymentDetails:
@@ -114,6 +142,22 @@ def parse_btcpay_html(html: str, url: str = "") -> PaymentDetails:
     )
     expiry = _attr(r'class="expiryTime"[^>]*>([^<]+)</span>', html)
 
+    srv = _parse_initial_srv_model(html)
+    order_status_url = str(srv.get("merchantRefLink") or "")
+    order_number = str(srv.get("orderId") or "")
+
+    if srv:
+        if not amount_due_btc:
+            amount_due_btc = str(srv.get("due") or srv.get("orderAmount") or "")
+        if not amount_due_display and amount_due_btc:
+            amount_due_display = f"{amount_due_btc} BTC"
+        if not total_fiat:
+            total_fiat = str(srv.get("orderAmountFiat") or "")
+        if not btc_address:
+            btc_address = str(srv.get("address") or "")
+        if not pay_wallet:
+            pay_wallet = str(srv.get("invoiceBitcoinUrl") or "")
+
     raw = {
         k: v
         for k, v in {
@@ -139,6 +183,8 @@ def parse_btcpay_html(html: str, url: str = "") -> PaymentDetails:
         pay_in_wallet_url=pay_wallet,
         payment_method=payment_method,
         expiry_text=expiry,
+        order_number=order_number,
+        order_status_url=order_status_url,
         raw_fields=raw,
     )
 

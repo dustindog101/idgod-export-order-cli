@@ -1,0 +1,18 @@
+{
+  "exportedAt": "2026-07-10T04:26:06.000Z",
+  "exportNote": null,
+  "shippingOverride": null,
+  "orderCount": 1,
+  "idRowCount": 0,
+  "orders": [
+    {
+      "orderId": "ord-007-EMPTY",
+      "status": "pending",
+      "shippingAddress": "Test User, 1 Test Way, Testville, CA, 90000, USA",
+      "trackingNumber": "",
+      "orderNote": "Order created but no IDs added yet",
+      "exportNote": "",
+      "ids": []
+    }
+  ]
+}

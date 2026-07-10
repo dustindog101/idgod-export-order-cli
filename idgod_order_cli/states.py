@@ -45,6 +45,55 @@ DEFAULT_STATE_PRICES: dict[str, float] = {
 
 PREMIUM_KEYWORDS = ("polycarbonate", "cdl", "provisional", "official", "new ")
 
+US_STATE_CODES: dict[str, str] = {
+    "al": "Alabama", "ak": "Alaska", "az": "Arizona", "ar": "Arkansas",
+    "ca": "California", "co": "Colorado", "ct": "Connecticut", "de": "Delaware",
+    "dc": "District of Columbia", "fl": "Florida", "ga": "Georgia", "hi": "Hawaii",
+    "id": "Idaho", "il": "Illinois", "in": "Indiana", "ia": "Iowa", "ks": "Kansas",
+    "ky": "Kentucky", "la": "Louisiana", "me": "Maine", "md": "Maryland",
+    "ma": "Massachusetts", "mi": "Michigan", "mn": "Minnesota", "ms": "Mississippi",
+    "mo": "Missouri", "mt": "Montana", "ne": "Nebraska", "nv": "Nevada",
+    "nh": "New Hampshire", "nj": "New Jersey", "nm": "New Mexico", "ny": "New York",
+    "nc": "North Carolina", "nd": "North Dakota", "oh": "Ohio", "ok": "Oklahoma",
+    "or": "Oregon", "pa": "Pennsylvania", "pr": "Puerto Rico", "ri": "Rhode Island",
+    "sc": "South Carolina", "sd": "South Dakota", "tn": "Tennessee", "tx": "Texas",
+    "ut": "Utah", "vt": "Vermont", "va": "Virginia", "wa": "Washington",
+    "wv": "West Virginia", "wi": "Wisconsin", "wy": "Wyoming",
+}
+
+PRODUCT_VARIANT_HINTS: dict[str, str] = {
+    "STANDARD": "",
+    "DMV_POLY": "Polycarbonate",
+    "DMV": "Polycarbonate",
+    "POLY": "Polycarbonate",
+    "POLYCARBONATE": "Polycarbonate",
+    "CDL": "CDL",
+    "PROVISIONAL": "Provisional",
+}
+
+
+def expand_state_name(state: str) -> str:
+    s = (state or "").strip()
+    if not s:
+        return s
+    if len(s) == 2 and s.isalpha():
+        return US_STATE_CODES.get(s.lower(), s)
+    return s
+
+
+def variant_from_product_id(product_id: str) -> str:
+    pid = (product_id or "").strip()
+    if not pid:
+        return ""
+    if ":" in pid:
+        _state_part, variant = pid.split(":", 1)
+        variant = variant.strip().upper()
+        hint = PRODUCT_VARIANT_HINTS.get(variant, "")
+        if hint:
+            return hint
+        return variant.replace("_", " ").title()
+    return pid
+
 
 def _norm(s: str) -> str:
     return re.sub(r"\s+", " ", s.strip().lower())

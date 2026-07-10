@@ -33,11 +33,13 @@ from .selectors import (
 from .states import (
     StateOption,
     estimate_price,
+    expand_state_name,
     map_eye_color,
     map_hair_color,
     map_sex,
     parse_height,
     pick_state_option,
+    variant_from_product_id,
 )
 
 ORDER_URL = "https://www.idgod.ph/order"
@@ -113,7 +115,7 @@ class IdGodOrderer:
         checkout_submit: bool = False,
         captcha_solver: str = "auto",
         twocaptcha_key: str = "",
-        captcha_attempts: int = 5,
+        captcha_attempts: int = 15,
         shipping: ShippingInfo | None = None,
         payment_method: str = "",
         shipping_method: str = "",
@@ -241,9 +243,15 @@ class IdGodOrderer:
         if self.ui:
             self.ui.detail(f"Selecting state for {person.state}")
         state_options = await self._get_state_options(page)
-        variant = person.state_variant or self.state_variants.get(person.state, "")
+        state_name = expand_state_name(person.state)
+        variant = (
+            person.state_variant
+            or self.state_variants.get(state_name, "")
+            or self.state_variants.get(person.state, "")
+            or variant_from_product_id(person.product_id)
+        )
         chosen, note = pick_state_option(
-            person.state,
+            state_name,
             state_options,
             variant=variant,
             cheapest=self.cheapest_state,
@@ -567,13 +575,16 @@ class IdGodOrderer:
         last_error = ""
         solver_used = ""
         captcha_mode = self.captcha_solver
-        if captcha_mode == "ppllocr" and self.use_tor:
+        if captcha_mode in ("ppllocr", "ddddocr"):
             captcha_mode = "auto"
 
         for attempt in range(1, max_attempts + 1):
             attempts_used = attempt
-            if attempt > 1:
-                await self._refresh_captcha(page)
+
+            try:
+                await captcha_input.fill("")
+            except Exception:
+                pass
 
             if self.ui:
                 self.ui.step(f"Attempt {attempt}/{max_attempts}: reading captcha image")
@@ -581,6 +592,8 @@ class IdGodOrderer:
             try:
                 image_bytes = await self._fetch_captcha_image(page)
                 debug_path = await self._save_captcha_debug(image_bytes, f"attempt-{attempt}")
+                votes = 1
+                reads = 0
                 result = await solve_captcha_image(
                     image_bytes,
                     mode=captcha_mode,
@@ -589,6 +602,8 @@ class IdGodOrderer:
                 solver_used = result["solver"]
                 raw_text = result.get("raw_text") or result["text"]
                 guess = result.get("guess") or best_captcha_guess(raw_text)
+                votes = result.get("consensus_votes", 1)
+                reads = result.get("ocr_reads", 1)
             except CaptchaSolverError as e:
                 last_error = str(e)
                 continue
@@ -610,7 +625,9 @@ class IdGodOrderer:
             else:
                 last_error = f"Trying '{guess}' from {solver_used} (attempt {attempt}/{max_attempts})"
                 if self.ui:
-                    self.ui.detail(f"OCR guess '{guess}' ({solver_used})")
+                    self.ui.detail(
+                        f"OCR guess '{guess}' ({solver_used}, {votes} vote(s), {reads} reads)"
+                    )
 
             if await self._submit_captcha_answer(page, captcha_input, guess):
                 solve_ms = int((time.time() - started) * 1000)
@@ -627,6 +644,7 @@ class IdGodOrderer:
             last_error = f"Captcha rejected for '{guess}' (raw OCR: {raw_text}, attempt {attempt}/{max_attempts})"
             if self.ui:
                 self.ui.warn(f"Rejected '{guess}' — refreshing")
+            await self._refresh_captcha(page)
 
         solve_ms = int((time.time() - started) * 1000)
         if self.ui:
@@ -635,19 +653,27 @@ class IdGodOrderer:
 
     async def _fill_checkout(self, page) -> CheckoutFillMeta:
         shipping = self.shipping
-        required = {
-            "email": shipping.email,
-            "name": shipping.name,
-            "address": shipping.street,
-            "city": shipping.city,
-            "state": shipping.state,
-            "zip": shipping.zip,
-        }
+        if shipping.is_local_delivery:
+            required = {"email": shipping.email}
+        else:
+            required = {
+                "email": shipping.email,
+                "name": shipping.name,
+                "address": shipping.street,
+                "city": shipping.city,
+                "state": shipping.state,
+                "zip": shipping.zip,
+            }
         missing_values = [key for key, value in required.items() if not value]
         if missing_values:
+            msg = f"Missing checkout values: {', '.join(missing_values)}"
+            if shipping.is_local_delivery:
+                msg = (
+                    f"{msg} (Local Delivery export — use --shipping or fill cart manually)"
+                )
             return CheckoutFillMeta(
                 completed=False,
-                message=f"Missing checkout values: {', '.join(missing_values)}",
+                message=msg,
                 filled=[],
                 missing=missing_values,
             )
@@ -663,15 +689,20 @@ class IdGodOrderer:
 
         if self.ui:
             self.ui.phase("Checkout")
-            self.ui.step("Filling shipping & payment")
+            if shipping.is_local_delivery:
+                self.ui.step("Local Delivery — filling email/payment only")
+            else:
+                self.ui.step("Filling shipping & payment")
 
-        await self._fill_cart_field(page, "name", shipping.name, filled, missing)
+        if not shipping.is_local_delivery:
+            await self._fill_cart_field(page, "name", shipping.name, filled, missing)
         await self._fill_cart_field(page, "email", shipping.email, filled, missing)
-        await self._fill_cart_field(page, "address", shipping.street, filled, missing)
-        await self._fill_cart_field(page, "city", shipping.city, filled, missing)
-        await self._fill_cart_field(page, "state", shipping.state, filled, missing)
-        await self._fill_cart_field(page, "zip", shipping.zip, filled, missing)
-        await self._fill_cart_field(page, "country", shipping.country or "USA", filled, missing)
+        if not shipping.is_local_delivery:
+            await self._fill_cart_field(page, "address", shipping.street, filled, missing)
+            await self._fill_cart_field(page, "city", shipping.city, filled, missing)
+            await self._fill_cart_field(page, "state", shipping.state, filled, missing)
+            await self._fill_cart_field(page, "zip", shipping.zip, filled, missing)
+            await self._fill_cart_field(page, "country", shipping.country or "USA", filled, missing)
 
         pay_label = self._resolve_payment_label()
         if pay_label:
@@ -715,10 +746,6 @@ class IdGodOrderer:
             filled.append("cart_update")
 
         total_after, _ = await self._read_totals(page)
-
-        if self.checkout_submit:
-            await page.wait_for_timeout(500)
-            await self._refresh_captcha(page)
 
         if self.checkout_submit:
             if self.ui:

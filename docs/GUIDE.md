@@ -197,15 +197,19 @@ This is a **read-only log** of past invoices and outcomes — not a resumable br
 
 ## Captcha
 
-Handled automatically (default solver chain: ppllocr → ddddocr → 2captcha if API key set).
+Handled automatically: **ddddocr + ppllocr** on raw and enhanced images (scaled, contrast, binary), with consensus voting. Default **15 tries**; a new image is fetched only after a rejected guess.
+
+```bash
+pip install -e '.[captcha]'   # includes ddddocr + Pillow
+```
 
 Debug images saved to `~/.cache/idgod-order-cli/captcha-debug/`.
 
 | Override | Use when |
 |----------|----------|
-| `--headed` | Watch the browser |
-| `--captcha-solver manual --headed` | Type captcha yourself |
-| `TWOCAPTCHA_API_KEY` + `--captcha-solver 2captcha` | Highest accuracy |
+| `--captcha-attempts 20` | More retries (fresh image each time) |
+| `--captcha-solver 2captcha` | Hard captchas; needs `TWOCAPTCHA_API_KEY` |
+| `--headed --captcha-solver manual` | Type it yourself |
 
 ---
 

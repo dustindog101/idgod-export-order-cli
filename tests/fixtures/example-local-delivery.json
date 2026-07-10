@@ -1,0 +1,40 @@
+{
+  "exportedAt": "2026-07-10T04:26:06.000Z",
+  "exportNote": null,
+  "shippingOverride": null,
+  "orderCount": 1,
+  "idRowCount": 1,
+  "orders": [
+    {
+      "orderId": "ord-006-LOCAL",
+      "status": "pending",
+      "shippingAddress": "Local Delivery",
+      "trackingNumber": "",
+      "orderNote": "Customer will pick up at storefront",
+      "exportNote": "",
+      "ids": [
+        {
+          "idIndex": 1,
+          "productId": "NY:STANDARD",
+          "state": "NY",
+          "firstName": "Jamie",
+          "middleName": "Lynn",
+          "lastName": "Martinez",
+          "dob": "04/12/1996",
+          "issueDate": "06/01/2025",
+          "streetAddress": "999 Local St",
+          "city": "New York",
+          "zipCode": "10001",
+          "zipPlus4": "",
+          "sex": "F",
+          "height": "5'7\"",
+          "weight": "150",
+          "eyeColor": "Hazel",
+          "hairColor": "Red",
+          "photoUrl": "https://r2.example.com/uploads/ord-006/photo-vwx.webp",
+          "signatureUrl": "https://r2.example.com/uploads/ord-006/sig-vwx.webp"
+        }
+      ]
+    }
+  ]
+}

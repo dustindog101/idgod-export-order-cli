@@ -1,0 +1,71 @@
+{
+  "exportedAt": "2026-07-10T05:00:00.000Z",
+  "exportNote": "multi-shipping live test",
+  "shippingOverride": null,
+  "orderCount": 2,
+  "idRowCount": 2,
+  "orders": [
+    {
+      "orderId": "test-order-oakland",
+      "status": "pending",
+      "shippingAddress": "Anaya Samsotha-Cooley, 5125 Leona St, Oakland, CA, 94619, USA",
+      "trackingNumber": "",
+      "orderNote": "test duplicate A",
+      "exportNote": "",
+      "ids": [
+        {
+          "idIndex": 1,
+          "productId": "Washington",
+          "state": "Washington",
+          "firstName": "TestA",
+          "middleName": "Socheata",
+          "lastName": "OaklandDup",
+          "dob": "07/11/2004",
+          "issueDate": "05/28/2026",
+          "streetAddress": "100 Test St A",
+          "city": "Seattle",
+          "zipCode": "98101",
+          "zipPlus4": "",
+          "sex": "Female",
+          "height": "5'4\"",
+          "weight": "108",
+          "eyeColor": "Brown",
+          "hairColor": "Brown",
+          "photoUrl": "https://42d2599ef47398eaf4c5a193efbac1d8.r2.cloudflarestorage.com/pic-uploads/u/26efae35-1993-4347-838e-d4cfab91a310/9b349d62-5557-4ee5-bce9-e596647cc719-photo.webp?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Content-Sha256=UNSIGNED-PAYLOAD&X-Amz-Credential=70b08e191a26bf97c68587a6a98bf0f7%2F20260710%2Fauto%2Fs3%2Faws4_request&X-Amz-Date=20260710T044355Z&X-Amz-Expires=86400&X-Amz-Signature=1c57cbdf307deb79a781fce6bf4cfd39513f2612df2df4b4fe385941155a10ec&X-Amz-SignedHeaders=host&x-amz-checksum-mode=ENABLED&x-id=GetObject",
+          "signatureUrl": "https://42d2599ef47398eaf4c5a193efbac1d8.r2.cloudflarestorage.com/pic-uploads/u/26efae35-1993-4347-838e-d4cfab91a310/be954ef1-fa4b-40f3-81f6-673ba4058aca-signature.webp?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Content-Sha256=UNSIGNED-PAYLOAD&X-Amz-Credential=70b08e191a26bf97c68587a6a98bf0f7%2F20260710%2Fauto%2Fs3%2Faws4_request&X-Amz-Date=20260710T044355Z&X-Amz-Expires=86400&X-Amz-Signature=54068c894ec54f430bcd33f10304d5ce56ccf8d550ac295e4b1e19ec274d551c&X-Amz-SignedHeaders=host&x-amz-checksum-mode=ENABLED&x-id=GetObject"
+        }
+      ]
+    },
+    {
+      "orderId": "test-order-seattle",
+      "status": "pending",
+      "shippingAddress": "Josie Paige Thompson, 5216 9th Avenue NW, Seattle, WA, 98107, USA",
+      "trackingNumber": "",
+      "orderNote": "test duplicate B",
+      "exportNote": "",
+      "ids": [
+        {
+          "idIndex": 2,
+          "productId": "Washington",
+          "state": "Washington",
+          "firstName": "TestB",
+          "middleName": "Paige",
+          "lastName": "SeattleDup",
+          "dob": "09/15/2004",
+          "issueDate": "05/28/2026",
+          "streetAddress": "200 Test St B",
+          "city": "Seattle",
+          "zipCode": "98102",
+          "zipPlus4": "",
+          "sex": "Female",
+          "height": "5'3\"",
+          "weight": "125",
+          "eyeColor": "Green",
+          "hairColor": "Blond",
+          "photoUrl": "https://42d2599ef47398eaf4c5a193efbac1d8.r2.cloudflarestorage.com/pic-uploads/u/26efae35-1993-4347-838e-d4cfab91a310/f889ff75-8555-4327-be41-9487f3cd432a-photo.webp?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Content-Sha256=UNSIGNED-PAYLOAD&X-Amz-Credential=70b08e191a26bf97c68587a6a98bf0f7%2F20260710%2Fauto%2Fs3%2Faws4_request&X-Amz-Date=20260710T044355Z&X-Amz-Expires=86400&X-Amz-Signature=38a9754886238da0ca5f0054b929e5a35842e44b2fd970666adc3958d34e84cc&X-Amz-SignedHeaders=host&x-amz-checksum-mode=ENABLED&x-id=GetObject",
+          "signatureUrl": "https://42d2599ef47398eaf4c5a193efbac1d8.r2.cloudflarestorage.com/pic-uploads/u/26efae35-1993-4347-838e-d4cfab91a310/4ec9376b-15b0-4697-ad3e-85b60ac8f5d2-signature.webp?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Content-Sha256=UNSIGNED-PAYLOAD&X-Amz-Credential=70b08e191a26bf97c68587a6a98bf0f7%2F20260710%2Fauto%2Fs3%2Faws4_request&X-Amz-Date=20260710T044355Z&X-Amz-Expires=86400&X-Amz-Signature=e5ae1a4a46354b5fe1779cf1e8aaeeb15bd166c5d68c2d6f859370aa75de902b&X-Amz-SignedHeaders=host&x-amz-checksum-mode=ENABLED&x-id=GetObject"
+        }
+      ]
+    }
+  ]
+}

@@ -192,6 +192,10 @@ def format_result_human(result: Any, *, verbose: bool = False) -> str:
         if getattr(result, "payment_url", ""):
             lines.append(f"  Invoice   {result.payment_url}")
         if pd and getattr(pd, "populated", False):
+            if pd.order_number:
+                lines.append(f"  Order #   {pd.order_number}")
+            if pd.order_status_url:
+                lines.append(f"  Status    {pd.order_status_url}")
             if pd.amount_due_display or pd.amount_due_btc:
                 lines.append(f"  Amount    {pd.amount_due_display or pd.amount_due_btc}")
             if pd.total_fiat:

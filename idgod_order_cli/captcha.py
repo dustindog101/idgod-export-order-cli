@@ -12,6 +12,7 @@ import os
 import re
 import time
 from abc import ABC, abstractmethod
+from collections import Counter
 from typing import Any
 
 
@@ -95,6 +96,79 @@ def best_captcha_guess(text: str) -> str:
         return candidates[0].lower()
 
     return base[:CAPTCHA_LEN_MAX].lower()
+
+
+def preprocess_captcha_variants(image_bytes: bytes) -> list[tuple[str, bytes]]:
+    """Generate OCR-friendly views of the same captcha (raw + enhanced)."""
+    out: list[tuple[str, bytes]] = [("raw", image_bytes)]
+    try:
+        import io
+
+        from PIL import Image, ImageEnhance, ImageFilter, ImageOps
+
+        img = Image.open(io.BytesIO(image_bytes))
+        if img.mode != "RGB":
+            img = img.convert("RGB")
+        w, h = img.size
+
+        def _png(im: Image.Image) -> bytes:
+            buf = io.BytesIO()
+            im.save(buf, format="PNG")
+            return buf.getvalue()
+
+        scaled = img.resize(
+            (max(w * 2, 140), max(h * 2, 48)),
+            Image.Resampling.LANCZOS,
+        )
+        out.append(("scaled2x", _png(scaled)))
+
+        gray = ImageOps.grayscale(scaled)
+        out.append(("gray", _png(gray.convert("RGB"))))
+
+        contrast = ImageEnhance.Contrast(gray).enhance(2.4)
+        sharp = ImageEnhance.Sharpness(contrast).enhance(2.2)
+        out.append(("contrast", _png(sharp.convert("RGB"))))
+
+        boosted = ImageOps.autocontrast(gray)
+        binary = boosted.point(lambda px: 255 if px > 135 else 0)
+        out.append(("binary", _png(binary.convert("RGB"))))
+
+        median = sharp.filter(ImageFilter.MedianFilter(3))
+        out.append(("median", _png(median.convert("RGB"))))
+    except Exception:
+        pass
+
+    seen: set[int] = set()
+    deduped: list[tuple[str, bytes]] = []
+    for label, data in out:
+        key = hash(data)
+        if key in seen:
+            continue
+        seen.add(key)
+        deduped.append((label, data))
+    return deduped
+
+
+def pick_consensus(results: list[dict[str, Any]]) -> dict[str, Any] | None:
+    """Vote across solvers + preprocess variants; pick the most common guess."""
+    if not results:
+        return None
+    guesses = [r["guess"] for r in results if r.get("guess")]
+    if not guesses:
+        return None
+
+    counts = Counter(guesses)
+    best_guess, votes = counts.most_common(1)[0]
+    matching = [r for r in results if r.get("guess") == best_guess]
+    priority = {"2captcha": 3, "ddddocr": 2, "ppllocr": 1}
+    matching.sort(
+        key=lambda r: (priority.get(str(r.get("solver", "")), 0), len(str(r.get("raw_text", "")))),
+        reverse=True,
+    )
+    best = dict(matching[0])
+    best["consensus_votes"] = votes
+    best["all_guesses"] = dict(counts)
+    return best
 
 
 class CaptchaSolver(ABC):
@@ -249,7 +323,7 @@ def get_solver(mode: str = "auto", api_key: str = "") -> CaptchaSolver:
 def _solver_chain(mode: str, api_key: str) -> list[str]:
     key = api_key or os.environ.get("TWOCAPTCHA_API_KEY", "")
     if mode == "auto":
-        chain = ["ppllocr", "ddddocr"]
+        chain = ["ddddocr", "ppllocr"]
         if key:
             chain.append("2captcha")
         return chain
@@ -265,17 +339,41 @@ async def solve_captcha_image(
     api_key: str = "",
 ) -> dict[str, Any]:
     errors: list[str] = []
-    for solver_mode in _solver_chain(mode, api_key):
-        try:
-            solver = get_solver(solver_mode, api_key)
-            text = await solver.solve(image_bytes)
-            return {
-                "solver": solver.name,
-                "text": text,
-                "raw_text": text,
-                "guess": best_captcha_guess(text),
-                "variants": captcha_variants(text),
-            }
-        except CaptchaSolverError as e:
-            errors.append(f"{solver_mode}: {e}")
+    results: list[dict[str, Any]] = []
+    variants = preprocess_captcha_variants(image_bytes)
+
+    for variant_name, variant_bytes in variants:
+        for solver_mode in _solver_chain(mode, api_key):
+            try:
+                solver = get_solver(solver_mode, api_key)
+                text = await solver.solve(variant_bytes)
+                guess = best_captcha_guess(text)
+                if not guess:
+                    continue
+                results.append(
+                    {
+                        "solver": solver.name,
+                        "text": text,
+                        "raw_text": text,
+                        "guess": guess,
+                        "variant": variant_name,
+                    }
+                )
+            except CaptchaSolverError as e:
+                errors.append(f"{solver_mode}/{variant_name}: {e}")
+
+    consensus = pick_consensus(results)
+    if consensus:
+        return {
+            "solver": consensus["solver"],
+            "text": consensus["text"],
+            "raw_text": consensus["raw_text"],
+            "guess": consensus["guess"],
+            "variants": captcha_variants(consensus["text"]),
+            "consensus_votes": consensus.get("consensus_votes", 1),
+            "all_guesses": consensus.get("all_guesses", {}),
+            "ocr_reads": len(results),
+            "preprocess_variants": len(variants),
+        }
+
     raise CaptchaSolverError("; ".join(errors) or "Captcha solving failed")

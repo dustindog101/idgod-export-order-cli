@@ -14,6 +14,30 @@ def test_captcha_variants_empty():
     assert captcha_variants("!!!") == []
 
 
+def test_pick_consensus():
+    from idgod_order_cli.captcha import pick_consensus
+
+    result = pick_consensus(
+        [
+            {"solver": "ppllocr", "guess": "ab12cd", "raw_text": "ab12cd", "text": "ab12cd"},
+            {"solver": "ddddocr", "guess": "ab12", "raw_text": "ab12", "text": "ab12"},
+            {"solver": "ddddocr", "guess": "ab12", "raw_text": "ab12x", "text": "ab12x", "variant": "contrast"},
+        ]
+    )
+    assert result is not None
+    assert result["guess"] == "ab12"
+    assert result["consensus_votes"] == 2
+
+
+def test_preprocess_returns_raw_without_pillow():
+    from idgod_order_cli.captcha import preprocess_captcha_variants
+
+    data = b"\x89PNG\r\n\x1a\n" + b"\x00" * 20
+    variants = preprocess_captcha_variants(data)
+    assert variants[0][0] == "raw"
+    assert variants[0][1] == data
+
+
 def test_plausible_captcha_length():
     from idgod_order_cli.captcha import plausible_captcha_length
 

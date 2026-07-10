@@ -22,6 +22,7 @@ examples:
   idgod-order order orders.xlsx --dry-run
   idgod-order probe --tor
   idgod-order cache list
+  idgod-order invoice 8oDSQNud6WzNy4ASS9ZMEY --tor
 
 payment (--payment-method, default: bitcoin):
   bitcoin    Bitcoin on BTCPay

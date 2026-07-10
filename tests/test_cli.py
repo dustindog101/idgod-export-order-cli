@@ -39,7 +39,7 @@ def test_order_defaults_full_flow():
         ]
     )
     assert args.captcha_solver == "auto"
-    assert args.captcha_attempts == 10
+    assert args.captcha_attempts == 15
     assert args.no_fetch_payment is False
     assert args.payment_method is None
     assert args.shipping_method is None
