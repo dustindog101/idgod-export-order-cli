@@ -106,6 +106,17 @@ Do **not** replace the production orderer until:
 - [ ] WebP/photo rejection cases match Playwright behavior
 - [ ] Multi-ID sessions (action=1 repeatedly) verified
 
+## Performance
+
+HTTP transport (default) skips Chromium launch and DOM automation:
+
+| Step | Playwright (typical) | HTTP (measured) |
+|------|---------------------|-----------------|
+| Add 1 ID to cart | ~15–30s | ~12s (incl. photo download over Tor) |
+| Browser startup | ~3–8s | 0 |
+
+Use `--browser` to force the legacy Playwright path.
+
 ## Running the probe
 
 ```bash

@@ -125,7 +125,12 @@ def _add_person_args(p: argparse.ArgumentParser) -> None:
     adv = p.add_argument_group("advanced")
     adv.add_argument("--dry-run", action="store_true", help="Parse file only; no browser")
     adv.add_argument("--json", action="store_true", help="Machine-readable JSON (no live progress)")
-    adv.add_argument("--headed", action="store_true", help="Show browser window")
+    adv.add_argument("--headed", action="store_true", help="Show browser (Playwright mode only)")
+    adv.add_argument(
+        "--browser",
+        action="store_true",
+        help="Use Playwright/Chrome instead of fast HTTP transport (default: HTTP)",
+    )
     adv.add_argument("-y", "--yes", action="store_true", help="Skip confirmation (auto when piped)")
     adv.add_argument("-v", "--verbose", action="store_true", help="Extra detail in final summary")
     adv.add_argument("--timeout", type=int, default=60, help=argparse.SUPPRESS)
@@ -685,6 +690,7 @@ async def _cmd_order(args: argparse.Namespace) -> int:
         cache_dir=args.cache_dir,
         use_cache=not args.no_cache,
         fetch_payment=full_order and not args.no_fetch_payment,
+        transport="browser" if args.browser else "http",
         ui=ui,
     )
 

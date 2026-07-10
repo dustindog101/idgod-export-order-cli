@@ -211,6 +211,7 @@ class IdGodOrderer:
         cache_dir: str = "",
         use_cache: bool = True,
         fetch_payment: bool = False,
+        transport: str = "http",
         ui: Any = None,
     ):
         self.headless = headless
@@ -237,10 +238,12 @@ class IdGodOrderer:
         self.cache_dir = cache_dir
         self.use_cache = use_cache
         self.fetch_payment = fetch_payment
+        self.transport = transport
         self.ui = ui
         self._tor_mgr = TorManager()
         self._active_proxy: ProxyConfig | None = None
         self._probe_results: list[dict] = []
+        self._http_finish_response = None
 
     async def _resolve_proxy(self) -> ProxyConfig | None:
         if self.use_tor:
@@ -995,6 +998,20 @@ class IdGodOrderer:
                 events=self.ui.events if self.ui else [],
             )
 
+        if self.transport == "http":
+            from .http_submit import submit_http
+
+            result = await submit_http(self, people)
+            if self.use_cache and not self.dry_run and result.success:
+                cache = OrderCache(self.cache_dir)
+                result.cache_path = str(cache.save(result.to_dict()))
+            if self.ui:
+                if result.success:
+                    self.ui.ok("Done")
+                else:
+                    self.ui.fail("Run finished with errors")
+            return result
+
         try:
             from playwright.async_api import async_playwright
         except ImportError:
@@ -1198,6 +1215,7 @@ class IdGodOrderer:
                         captcha_attempts_used=fill_meta.captcha_attempts_used,
                         elapsed_ms=elapsed_ms,
                         tor_mode=tor_mode,
+                        transport="browser",
                         input_file=self.input_file,
                         timings=timings,
                         shipping=self.shipping if self.checkout else None,

@@ -173,6 +173,8 @@ def format_result_human(result: Any, *, verbose: bool = False) -> str:
     meta: list[str] = []
     if getattr(result, "elapsed_ms", 0):
         meta.append(f"{result.elapsed_ms / 1000:.1f}s")
+    if getattr(result, "transport", ""):
+        meta.append(result.transport)
     if getattr(result, "tor_mode", ""):
         meta.append(result.tor_mode)
     elif getattr(result, "proxy_used", ""):
