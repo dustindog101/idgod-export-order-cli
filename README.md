@@ -3,13 +3,14 @@
 Submit IDGod orders from spreadsheet exports (CSV / XLSX / JSON).
 
 > **Repo:** https://github.com/dustindog101/idgod-export-order-cli  
-> **Full guide:** [docs/GUIDE.md](docs/GUIDE.md) · **Agents:** [HANDOFF.md](HANDOFF.md)
+> **Docs:** [docs/DOCUMENTATION.md](docs/DOCUMENTATION.md) · **Agents:** [HANDOFF.md](HANDOFF.md)
 
 ## Install
 
 ```bash
+cd ~/Projects/idgod-order-cli
 pip install -e '.[captcha]'
-playwright install chromium   # first time only
+playwright install chromium   # only if using --playwright
 ```
 
 ## Run
@@ -17,31 +18,48 @@ playwright install chromium   # first time only
 ```bash
 ./idgod-order order orders.xlsx \
   --tor \
-  --email you@proton.me \
-  --fallback-photo ~/Desktop/good.jpg
+  -e you@email.com \
+  --fallback-photo ~/Desktop/good.jpg   # optional backup if export URLs expire
 ```
 
-One command: each spreadsheet row → ID form → cart → coupon → captcha → BTCPay invoice.
+One command: each row → ID form → cart → coupon → captcha → BTCPay invoice.
 
-## Help
+- **HTTP** is the default (fast).
+- Add **`--playwright`** if HTTP captcha keeps failing.
+- Use **`--discount ""`** for no coupon.
+- Omit **`--fallback-photo`** when export image URLs are live.
+
+## Commands
 
 ```bash
-./idgod-order order --help
+./idgod-order order FILE …       # Place order(s)
+./idgod-order probe --tor        # Test connectivity
+./idgod-order cache list         # Past run logs
+./idgod-order invoice <id>       # Look up BTCPay invoice
+./idgod-order order --help       # All flags
 ```
 
-Shows examples, payment/shipping options, and defaults. Detailed docs live in **[docs/GUIDE.md](docs/GUIDE.md)**.
+## Coupon
 
-## Other commands
+Default code: `hartlr` (reseller). Discount shows on the **BTCPay invoice**, not the cart total.
 
-```bash
-./idgod-order probe --tor
-./idgod-order cache list
-./idgod-order order orders.xlsx --dry-run
-```
+| Flag | Effect |
+|------|--------|
+| `--discount hartlr` | Default |
+| `--discount ""` | No coupon |
+| `--no-require-coupon` | Try coupon but allow full-price checkout |
+
+## Planned: payment tracking
+
+Mark orders paid and upload payment receipts — see [docs/INVOICE-TRACKING.md](docs/INVOICE-TRACKING.md).
 
 ## Tests
 
 ```bash
 pip install -e '.[dev]'
-pytest tests/ -v
+pytest tests/ -q
 ```
+
+## Full guide
+
+[docs/GUIDE.md](docs/GUIDE.md) — payment methods, shipping, captcha, JSON output, troubleshooting.

@@ -4,39 +4,58 @@
 
 | Issue | Impact | Workaround |
 |-------|--------|------------|
-| Direct IP blocked by idgod.ph | Cannot reach site without proxy | `--proxy` or `--tor` required |
+| Direct IP blocked by idgod.ph | Cannot reach site without proxy | `--tor` or `--proxy` required |
 | Playwright bundled Chromium x64 on arm64 | SIGSEGV on launch | Auto-fallback to `channel="chrome"` |
-| Low disk space | Browser crashes | Free cache before long runs |
+| Vendor rate-limits test orders | Coupon/IP ban | Ask user before bulk live runs |
 
-## Feature gaps
+## Resolved (2026-07)
 
-### FINISH ORDER / captcha
-- Cart uses django-simple-captcha (`#id_captcha_1` + image)
-- **Automated:** `--checkout-submit` with `--captcha-solver ppllocr` (install `pip install -e '.[captcha]'`) or `--captcha-solver 2captcha` + `TWOCAPTCHA_API_KEY`
-- **Manual:** `--captcha-solver manual --headed`
-- **Disk:** ppllocr wheel is ~67MB; use 2captcha if disk is tight
+| Item | Status |
+|------|--------|
+| HTTP transport as default | ✅ |
+| Full checkout + captcha + BTCPay | ✅ HTTP and Playwright |
+| Coupon `hartlr` on invoice | ✅ `finalize_coupon_result()` |
+| HTTP captcha always rejected | ✅ Fixed hash rotation (no UPDATE in captcha loop) |
+| Per-person export photos | ✅ Prefetch URLs direct, upload via Tor |
+| Cart checkout fields | ✅ |
+| Shipping from export column | ✅ |
+| `idgod-order invoice` lookup | ✅ |
 
-### Discount code
-- **Status:** ✅ Fills `#id_coupon` and clicks UPDATE when `--checkout`
-- Verify total actually drops after UPDATE (may depend on code validity)
+## Open gaps
 
-### Per-person photos
-- Each row's Photo URL is tried first; `--fallback-photo` only when URL fails
-- Dead URLs in export all use same fallback image
+### Payment tracking (P0 — planned)
+
+- No way to mark an order **paid** or attach payment proof yet
+- Spec: [INVOICE-TRACKING.md](INVOICE-TRACKING.md)
+
+### HTTP captcha OCR accuracy
+
+- Sometimes fails 15/15; Playwright often succeeds on same site
+- Try `--playwright` or `--captcha-solver 2captcha`
+- Debug PNGs: `~/.cache/idgod-order-cli/captcha-debug/`
 
 ### Session persistence
-- Each CLI run = new browser session; cart not preserved between runs
 
-## Resolved (2026-07-09)
+- Each run = new session; cart not preserved between CLI invocations
 
-- ✅ Cart checkout fields (name, address, email, payment, shipping)
-- ✅ Coupon field on cart page
-- ✅ Shipping parsed from export `Shipping` column
-- ✅ Default payment Bitcoin when `--checkout`
-- ✅ Default shipping standard $20
+### Coupon vendor-side
+
+- Code can be disabled by vendor for excessive test orders
+- `--no-require-coupon` allows full-price checkout if code inactive
 
 ## Form quirks
 
-- Order form: Bootstrap validator — use `requestSubmit` after `validator('destroy')`
-- Cart form: must click UPDATE after filling fields
 - Order address (`#id_address1`) ≠ shipping address (`#id_address` on cart)
+- Cart: click UPDATE after filling fields before FINISH
+- Order form: Bootstrap validator — Playwright uses `requestSubmit` after `validator('destroy')`
+- **HTTP captcha:** never POST `action=update` between reading captcha image and `action=finish`
+
+## Feature flags reference
+
+| Flag | Effect |
+|------|--------|
+| `--discount ""` | No coupon |
+| `--no-require-coupon` | Coupon optional at checkout |
+| `--no-cache` | Skip saving result JSON |
+| `--no-fetch-payment` | Skip BTCPay scrape |
+| `--playwright` | Browser instead of HTTP |

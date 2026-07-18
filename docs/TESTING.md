@@ -1,62 +1,88 @@
 # Testing
 
-## Unit tests
+## Unit tests (no network)
 
 ```bash
 pip install -e '.[dev]'
-pytest tests/ -m "not integration" -v
+pytest tests/ -q
 ```
 
-Covers: parser (multi-person CSV), captcha helpers, order cache, BTCPay HTML parsing, proxy/Tor manager cleanup.
-
-## Tor integration test (slow, needs Tor)
-
-```bash
-pytest tests/test_proxies.py::test_tor_probe_idgod -v
-# or CLI:
-./idgod-order probe --tor --method httpx --json
-```
-
-Uses existing Tor on `:9050`/`:9150` if running; otherwise spawns `tor` and cleans up after.
-
-## Fetch BTCPay payment details
-
-After `--checkout-submit`, optionally scrape the invoice page:
-
-```bash
-./idgod-order order ... --checkout --checkout-submit --fetch-payment -v --json
-```
-
-JSON `payment_details` includes: `amount_due_btc`, `total_fiat`, `btc_address`, `pay_in_wallet_url`, `exchange_rate`, `invoice_id`.
-
-## Probe (no order placed)
-
-```bash
-./idgod-order probe --proxy-file proxies/webshare.txt --method both --json
-```
-
-Expected: at least one result with `"ok": true`, `"form_fields": 19`.
+Covers: parser, captcha helpers, HTTP forms/coupon logic, order cache, BTCPay HTML parsing, proxy/Tor manager.
 
 ## Dry run (parse only)
 
 ```bash
-./idgod-order order \
-  --file /Users/king/Downloads/orders-2026-07-08.xlsx \
-  --fallback-photo /Users/king/Desktop/good.jpg \
-  --dry-run -y --json
+./idgod-order order ~/Downloads/orders-2026-07-18.xlsx --dry-run -y
 ```
 
-Expected: `"success": true`, `"dry_run": true`, 4 people listed.
+Expected: `success: true`, 4 people listed, no network.
 
-## Dry run with checkout parsing
+## Connectivity probe
 
 ```bash
-./idgod-order order \
-  --file /Users/king/Downloads/orders-2026-07-08.xlsx \
-  --fallback-photo /Users/king/Desktop/good.jpg \
-  --checkout --email test@example.com \
-  --dry-run -y --json
+./idgod-order probe --tor --method httpx --json
 ```
+
+## Live order (user approval required)
+
+```bash
+./idgod-order order ~/Downloads/orders-2026-07-18.xlsx \
+  --tor \
+  -e contact@mail.idpirate.com \
+  -y --json --single-checkout \
+  --discount hartlr
+```
+
+Expected:
+
+| Field | Value |
+|-------|-------|
+| `success` | `true` |
+| `checkout_completed` | `true` |
+| `submitted_ids` | 4 names |
+| `payment_url` | `https://btcpay.idgod.ph/invoice?id=…` |
+| `discount_applied` | `true` (4 IDs → ~$260 invoice) |
+| `transport` | `http` |
+
+Omit `--fallback-photo` when export image URLs are verified live.
+
+## Playwright fallback test
+
+```bash
+./idgod-order order … --playwright …
+```
+
+Same success criteria; `transport: browser`.
+
+## Invoice lookup
+
+```bash
+./idgod-order invoice AXjkREgrthGf1P1Dboqxme --json
+```
+
+## Cache list
+
+```bash
+./idgod-order cache list
+```
+
+## Verify export images before order
+
+```bash
+uv run python scripts/verify-vendor-images.py ~/Downloads/orders-2026-07-18.xlsx
+```
+
+## Coupon manual probe (dev)
+
+```bash
+uv run python scripts/coupon-manual-probe.py orders.xlsx --checkout
+```
+
+---
+
+## Legacy notes
+
+Older docs referenced `--checkout` as a separate flag. As of 2026-07, `order` runs full checkout by default. Use `--dry-run` to skip network.
 
 Expected:
 - `"success": true`

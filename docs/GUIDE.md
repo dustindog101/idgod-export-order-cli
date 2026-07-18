@@ -32,9 +32,21 @@ Use `--dry-run` to validate the file without opening a browser.
 
 | Command | Purpose |
 |---------|---------|
-| `idgod-order order FILE …` | Full order (default workflow) |
+| `idgod-order order FILE …` | Full order (HTTP default) |
 | `idgod-order probe --tor` | Test Tor/proxy connectivity |
-| `idgod-order cache list` | Show past run results (read-only log) |
+| `idgod-order cache list` | Past run results (read-only log) |
+| `idgod-order invoice ID` | Look up BTCPay invoice by id or URL |
+
+---
+
+## Transport
+
+| Mode | Flag | When to use |
+|------|------|-------------|
+| **HTTP** (default) | *(none)* | Fast; ~15–35s for 4 IDs |
+| **Playwright** | `--browser` or `--playwright` | HTTP captcha failing; visual debug (`--headed`) |
+
+Both paths share the same coupon logic and BTCPay invoice scrape.
 
 ---
 
@@ -54,7 +66,7 @@ Use `--dry-run` to validate the file without opening a browser.
 | Photo URL | ID photo upload |
 | Signature URL | Signature upload |
 
-CLI overrides: `--fallback-photo`, `--fallback-signature` when URLs expire.
+CLI overrides: `--fallback-photo`, `--fallback-signature` when URLs expire. **Omit both** to use export URLs only (order fails if a URL is dead).
 
 ### Shared checkout (`/cart`) — whole order
 
@@ -65,7 +77,21 @@ CLI overrides: `--fallback-photo`, `--fallback-signature` when URLs expire.
 | `--shipping` or `--shipping-*` | Override parsed shipping |
 | Default | Payment: **Bitcoin** |
 | Default | Shipping speed: **standard** (~20 days, $20) |
-| `--discount` | Coupon code (default `hartlr`) |
+| `--discount` | Coupon code (default `hartlr`; use `""` for none) |
+| `--no-require-coupon` | Allow checkout at full price if coupon missing on invoice |
+
+### Coupon behaviour
+
+idgod.ph often keeps cart `#total` unchanged after UPDATE. The **BTCPay invoice fiat** is authoritative:
+
+| IDs | Cart | Invoice with `hartlr` | Full price |
+|-----|------|----------------------|------------|
+| 1 | $130 | ~$85 | ~$150 |
+| 4 | $480 | ~$260 | ~$500 |
+
+`discount_applied: true` in JSON only when invoice &lt; ~75% of cart total.
+
+---
 
 ### Ignored columns (export metadata only)
 
@@ -191,7 +217,9 @@ Each run saves a JSON result to:
 ./idgod-order cache list
 ```
 
-This is a **read-only log** of past invoices and outcomes — not a resumable browser session. If a run fails at captcha, re-run; it does not continue a half-filled cart.
+This is a **read-only log** of past invoices and outcomes — not a resumable browser session.
+
+**Planned:** mark orders paid and upload payment receipts — see [INVOICE-TRACKING.md](INVOICE-TRACKING.md).
 
 ---
 
