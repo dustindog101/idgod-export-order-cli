@@ -44,36 +44,38 @@ from .states import (
 
 ORDER_URL = "https://www.idgod.ph/order"
 CART_URL = "https://www.idgod.ph/cart"
-DEFAULT_DISCOUNT = "hartlr"
+DEFAULT_DISCOUNT = ""
 USER_AGENT = (
     "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 "
     "(KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
 )
 
 
+async def fetch_vendor_image_bytes(url: str, *, timeout: float = 30.0) -> bytes:
+    """Download export/vendor image URLs over a direct connection (not Tor/proxy)."""
+    async with httpx.AsyncClient(
+        follow_redirects=True,
+        timeout=timeout,
+        headers={"User-Agent": USER_AGENT, "Accept": "image/*,*/*"},
+    ) as client:
+        resp = await client.get(url)
+        resp.raise_for_status()
+        return resp.content
+
+
 async def _resolve_image(
     source: str,
     fallback: str = "",
-    proxy: ProxyConfig | None = None,
 ) -> Path:
     src = source.strip()
     if src.startswith(("http://", "https://")):
         try:
-            client_kwargs: dict[str, Any] = {
-                "follow_redirects": True,
-                "timeout": 30,
-                "headers": {"User-Agent": USER_AGENT},
-            }
-            if proxy:
-                client_kwargs["proxy"] = proxy.to_httpx()
-            async with httpx.AsyncClient(**client_kwargs) as client:
-                resp = await client.get(src)
-                resp.raise_for_status()
-                suffix = Path(urlparse(src).path).suffix or ".jpg"
-                tmp = tempfile.NamedTemporaryFile(delete=False, suffix=suffix)
-                tmp.write(resp.content)
-                tmp.close()
-                return _prepare_upload_image(Path(tmp.name))
+            content = await fetch_vendor_image_bytes(src)
+            suffix = Path(urlparse(src).path).suffix or ".jpg"
+            tmp = tempfile.NamedTemporaryFile(delete=False, suffix=suffix)
+            tmp.write(content)
+            tmp.close()
+            return _prepare_upload_image(Path(tmp.name))
         except Exception:
             if fallback:
                 src = fallback
@@ -212,6 +214,7 @@ class IdGodOrderer:
         use_cache: bool = True,
         fetch_payment: bool = False,
         transport: str = "http",
+        require_coupon: bool = True,
         ui: Any = None,
     ):
         self.headless = headless
@@ -239,6 +242,7 @@ class IdGodOrderer:
         self.use_cache = use_cache
         self.fetch_payment = fetch_payment
         self.transport = transport
+        self.require_coupon = require_coupon
         self.ui = ui
         self._tor_mgr = TorManager()
         self._active_proxy: ProxyConfig | None = None
@@ -379,7 +383,7 @@ class IdGodOrderer:
                 await page.locator(SELECTORS[key]).dispatch_event("change")
                 await page.locator(SELECTORS[key]).dispatch_event("blur")
 
-            photo_path = await _resolve_image(person.photo, self.fallback_photo, self._active_proxy)
+            photo_path = await _resolve_image(person.photo, self.fallback_photo)
             if self.ui:
                 self.ui.detail("Uploading photo")
             await page.locator(SELECTORS["picture"]).set_input_files(str(photo_path))
@@ -388,7 +392,7 @@ class IdGodOrderer:
             if person.signature or self.fallback_signature:
                 if self.ui:
                     self.ui.detail("Uploading signature")
-                sig_path = await _resolve_image(person.signature, self.fallback_signature, self._active_proxy)
+                sig_path = await _resolve_image(person.signature, self.fallback_signature)
                 sig_loc = page.locator(SELECTORS["signature"])
                 if await sig_loc.count():
                     await sig_loc.set_input_files(str(sig_path))
@@ -800,6 +804,8 @@ class IdGodOrderer:
         if not shipping.is_local_delivery:
             await self._fill_cart_field(page, "name", shipping.name, filled, missing)
         await self._fill_cart_field(page, "email", shipping.email, filled, missing)
+        if shipping.phone.strip():
+            await self._fill_cart_field(page, "phone", shipping.phone.strip(), filled, missing)
         if not shipping.is_local_delivery:
             await self._fill_cart_field(page, "address", shipping.street, filled, missing)
             await self._fill_cart_field(page, "city", shipping.city, filled, missing)
@@ -850,6 +856,18 @@ class IdGodOrderer:
             filled.append("cart_update")
 
         total_after, _ = await self._read_totals(page)
+
+        if self.discount_code:
+            from .http_forms import coupon_savings_message
+
+            applied, msg, _ = coupon_savings_message(
+                self.discount_code, total_before, total_after
+            )
+            if self.ui:
+                if applied:
+                    self.ui.ok(msg)
+                elif msg:
+                    self.ui.detail(msg)
 
         if self.checkout_submit:
             if self.ui:
@@ -986,12 +1004,13 @@ class IdGodOrderer:
             ]
             return CheckoutResult(
                 success=True,
-                message="Dry run complete — no browser launched",
+                message="Dry run complete — no network requests",
                 submitted_ids=[p.display_name for p in people],
                 discount_code=self.discount_code,
                 cart_count=len(people),
                 order_results=results,
                 dry_run=True,
+                transport=self.transport,
                 checkout_attempted=self.checkout,
                 checkout_completed=not self.checkout,
                 checkout_message="Dry run complete — checkout not launched" if self.checkout else "",
@@ -1117,14 +1136,14 @@ class IdGodOrderer:
 
                     await self._write_debug_dump(page, "cart-before-checkout")
                     fill_meta = CheckoutFillMeta(completed=False, message="", filled=[], missing=[])
+                    discount_applied = False
+                    discount_msg = "Coupon not applied"
+                    savings = None
                     if self.checkout:
                         fill_meta = await self._fill_checkout(page)
-                        discount_applied = "coupon" in fill_meta.filled
-                        discount_msg = (
-                            f"Coupon '{self.discount_code}' saved with UPDATE"
-                            if discount_applied
-                            else "Coupon not applied"
-                        )
+                        if fill_meta.total_before_discount is None:
+                            total_before, _ = await self._read_totals(page)
+                            fill_meta.total_before_discount = total_before
                         await page.wait_for_load_state("domcontentloaded")
                         await page.wait_for_timeout(1000)
                         await self._write_debug_dump(page, "cart-after-checkout")
@@ -1134,23 +1153,14 @@ class IdGodOrderer:
                         fill_meta.total_after_discount = fill_meta.total_before_discount
 
                     total, cart_count = await self._read_totals(page)
-                    if fill_meta.total_after_discount is None:
-                        fill_meta.total_after_discount = total
                     if fill_meta.total_before_discount is None:
                         fill_meta.total_before_discount = total
 
-                    savings = None
-                    if (
-                        fill_meta.total_before_discount is not None
-                        and fill_meta.total_after_discount is not None
-                    ):
-                        savings = round(fill_meta.total_before_discount - fill_meta.total_after_discount, 2)
-                        if savings <= 0:
-                            savings = None
-
                     payment_url = page.url
                     payment_details = PaymentDetails(invoice_url=payment_url)
-                    if self.fetch_payment and fill_meta.completed:
+                    if fill_meta.completed and (
+                        self.fetch_payment or "btcpay" in payment_url.lower()
+                    ):
                         if self.ui:
                             self.ui.phase("Payment")
                             self.ui.step("Fetching BTCPay invoice…")
@@ -1160,8 +1170,26 @@ class IdGodOrderer:
                         if payment_details.invoice_url and not payment_url.startswith(
                             "https://btcpay"
                         ):
-                            payment_url = payment_details.invoice_url or payment_url
+                            payment_url = payment_details.invoice_url
+
+                    if self.discount_code and fill_meta.total_before_discount is not None:
+                        from .http_forms import finalize_coupon_result, parse_fiat_amount
+
+                        invoice_fiat = payment_details.total_fiat if payment_details.populated else ""
+                        discount_applied, discount_msg, savings, invoice_total = (
+                            finalize_coupon_result(
+                                self.discount_code,
+                                fill_meta.total_before_discount,
+                                invoice_fiat,
+                            )
+                        )
+                        if discount_applied and invoice_total is not None:
+                            fill_meta.total_after_discount = invoice_total
                         if self.ui and payment_details.populated:
+                            if discount_applied:
+                                self.ui.ok(discount_msg)
+                            elif self.require_coupon and fill_meta.completed:
+                                self.ui.fail(discount_msg or "Coupon not reflected on invoice")
                             self.ui.ok(f"Invoice {payment_details.invoice_id or payment_url}")
 
                     body_text = await page.inner_text("body")
@@ -1178,7 +1206,8 @@ class IdGodOrderer:
                         ][:12]
 
                     submitted = [r.person.display_name for r in results if r.success]
-                    price_per = (total / len(submitted)) if total and submitted else None
+                    invoice_total = fill_meta.total_after_discount or total
+                    price_per = (invoice_total / len(submitted)) if invoice_total and submitted else None
                     elapsed_ms = int((time.time() - run_started) * 1000)
                     timings["total_ms"] = elapsed_ms
                     if fill_meta.captcha_solve_time_ms:
@@ -1186,17 +1215,43 @@ class IdGodOrderer:
 
                     tor_mode = self._tor_mgr.mode if self.use_tor else ""
 
+                    coupon_blocked = (
+                        self.checkout_submit
+                        and fill_meta.completed
+                        and self.require_coupon
+                        and bool(self.discount_code)
+                        and not discount_applied
+                        and payment_details.populated
+                    )
+                    if coupon_blocked and not fill_meta.message:
+                        fill_meta.message = (
+                            discount_msg or f"Coupon '{self.discount_code}' required but not applied"
+                        )
+                    if self.checkout and not fill_meta.completed:
+                        result_message = fill_meta.message or discount_msg or "Checkout incomplete"
+                    elif coupon_blocked:
+                        result_message = discount_msg or f"Coupon '{self.discount_code}' not on invoice"
+                    elif discount_applied:
+                        result_message = discount_msg
+                    else:
+                        result_message = "Order submitted to cart/checkout"
+
                     result = CheckoutResult(
                         success=all(r.success for r in results)
-                        and (not self.checkout_submit or fill_meta.completed),
-                        message=discount_msg if discount_applied else "Order submitted to cart/checkout",
+                        and (not self.checkout_submit or fill_meta.completed)
+                        and not coupon_blocked,
+                        message=result_message,
                         submitted_ids=submitted,
                         payment_url=payment_url,
                         payment_info="\n".join(pay_lines),
                         payment_details=payment_details if payment_details.populated else None,
-                        total_price=fill_meta.total_after_discount or total,
+                        total_price=(
+                            parse_fiat_amount(payment_details.total_fiat)
+                            if payment_details.populated and payment_details.total_fiat
+                            else (fill_meta.total_after_discount or total)
+                        ),
                         total_before_discount=fill_meta.total_before_discount,
-                        total_after_discount=fill_meta.total_after_discount or total,
+                        total_after_discount=fill_meta.total_after_discount,
                         discount_savings=savings,
                         price_per_id=price_per,
                         discount_code=self.discount_code,

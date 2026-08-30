@@ -70,7 +70,7 @@ def _add_person_args(p: argparse.ArgumentParser) -> None:
     p.add_argument("--file", "-f", dest="file_flag", help="Input file")
 
     req = p.add_argument_group("required for a real order")
-    req.add_argument("--email", default="", help="Checkout email (payment instructions sent here)")
+    req.add_argument("-e", "--email", default="", help="Checkout email (payment instructions sent here)")
     req.add_argument(
         "--fallback-photo",
         default="",
@@ -84,7 +84,7 @@ def _add_person_args(p: argparse.ArgumentParser) -> None:
 
     ov = p.add_argument_group("overrides")
     ov.add_argument("--limit", type=int, default=0, help="Max rows from file (0 = all)")
-    ov.add_argument("--discount", default=DEFAULT_DISCOUNT, help=f"Coupon code (default: {DEFAULT_DISCOUNT})")
+    ov.add_argument("--discount", default=DEFAULT_DISCOUNT, help="Coupon code (default: none)")
     ov.add_argument(
         "--state-variant",
         action="append",
@@ -111,6 +111,7 @@ def _add_person_args(p: argparse.ArgumentParser) -> None:
     ov.add_argument("--shipping-state", default="")
     ov.add_argument("--shipping-zip", default="")
     ov.add_argument("--shipping-country", default="")
+    ov.add_argument("--shipping-phone", default="", help="Optional; site ties coupons to phone in some cases")
     ov.add_argument(
         "--multi-checkout",
         action="store_true",
@@ -125,11 +126,18 @@ def _add_person_args(p: argparse.ArgumentParser) -> None:
     adv = p.add_argument_group("advanced")
     adv.add_argument("--dry-run", action="store_true", help="Parse file only; no browser")
     adv.add_argument("--json", action="store_true", help="Machine-readable JSON (no live progress)")
-    adv.add_argument("--headed", action="store_true", help="Show browser (Playwright mode only)")
+    adv.add_argument("--headed", action="store_true", help="Show browser window (with --browser / --playwright)")
     adv.add_argument(
         "--browser",
+        "--playwright",
         action="store_true",
-        help="Use Playwright/Chrome instead of fast HTTP transport (default: HTTP)",
+        dest="browser",
+        help="Use Playwright/Chrome instead of fast HTTP (slower; use if HTTP fails or coupon issues)",
+    )
+    adv.add_argument(
+        "--no-require-coupon",
+        action="store_true",
+        help="Allow checkout even if the coupon does not reduce the cart total",
     )
     adv.add_argument("-y", "--yes", action="store_true", help="Skip confirmation (auto when piped)")
     adv.add_argument("-v", "--verbose", action="store_true", help="Extra detail in final summary")
@@ -337,6 +345,8 @@ def _load_shipping(
         shipping.zip = args.shipping_zip
     if args.shipping_country:
         shipping.country = args.shipping_country
+    if args.shipping_phone:
+        shipping.phone = args.shipping_phone
 
     return shipping
 
@@ -645,7 +655,7 @@ async def _cmd_order(args: argparse.Namespace) -> int:
         if len(people) > 4:
             names += f", … +{len(people) - 4} more"
         print(f"Submit {batch_desc} to idgod.ph: {names}")
-        print(f"Coupon: {args.discount} · Email: {args.email}")
+        print(f"Coupon: {args.discount or 'none'} · Email: {args.email}")
         routing = "Tor" if args.tor else ("proxy" if (args.proxy or args.proxy_file) else "direct")
         print(f"Route: {routing}")
         try:
@@ -691,6 +701,7 @@ async def _cmd_order(args: argparse.Namespace) -> int:
         use_cache=not args.no_cache,
         fetch_payment=full_order and not args.no_fetch_payment,
         transport="browser" if args.browser else "http",
+        require_coupon=not args.no_require_coupon,
         ui=ui,
     )
 

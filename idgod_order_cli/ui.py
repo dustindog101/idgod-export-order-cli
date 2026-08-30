@@ -224,10 +224,14 @@ def format_result_human(result: Any, *, verbose: bool = False) -> str:
         lines.append(_bold("Totals"))
         lines.append(_dim("─" * 40))
         if result.total_before_discount is not None:
-            lines.append(f"  Before coupon   {_money(result.total_before_discount)}")
+            lines.append(f"  Cart total      {_money(result.total_before_discount)}")
         after = result.total_after_discount if result.total_after_discount is not None else result.total_price
         if after is not None:
-            lines.append(f"  After coupon    {_money(after)}")
+            pd = getattr(result, "payment_details", None)
+            if pd and getattr(pd, "total_fiat", ""):
+                lines.append(f"  Invoice total   {_money(after)}")
+            else:
+                lines.append(f"  After coupon    {_money(after)}")
         if result.discount_savings:
             lines.append(f"  Saved           {_money(result.discount_savings)}")
         if result.price_per_id is not None:

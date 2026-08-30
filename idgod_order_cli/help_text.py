@@ -3,18 +3,24 @@
 from __future__ import annotations
 
 ORDER_DESCRIPTION = """\
-Place complete orders from a spreadsheet export.
+Place complete orders from a spreadsheet export (HTTP by default — fast, no browser).
 
   Row data     → each person's ID form (name, DOB, address, photo, …)
   Shipping col → one shared delivery address at checkout
   --email      → where payment instructions are sent
 
-A real run does everything: ID forms → cart → coupon → captcha → BTCPay invoice."""
+A real run does everything: ID forms → cart → coupon → captcha → BTCPay invoice.
+HTTP is default; add --browser or --playwright for Chrome automation."""
 
 ORDER_EPILOG = """\
 examples:
-  idgod-order order orders.xlsx --tor --email you@proton.me \\
+  # Fast HTTP (default)
+  idgod-order order orders.xlsx --tor -e you@proton.me \\
     --fallback-photo ~/Desktop/good.jpg
+
+  # Playwright / Chrome (same flags + --browser or --playwright)
+  idgod-order order orders.xlsx --tor -e you@proton.me --browser
+  idgod-order order orders.xlsx --tor -e you@proton.me --playwright --headed
 
   idgod-order order orders.xlsx --proxy-file proxies/webshare.txt \\
     --email you@proton.me --fallback-photo ~/Desktop/good.jpg --limit 1

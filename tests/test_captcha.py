@@ -47,6 +47,25 @@ def test_plausible_captcha_length():
     assert not plausible_captcha_length("ab")
 
 
+def test_unpack_captcha_result():
+    from idgod_order_cli.captcha import unpack_captcha_result
+
+    result = {
+        "solver": "ddddocr",
+        "text": "Ab3xY",
+        "raw_text": "Ab3xY",
+        "guess": "ab3xy",
+        "consensus_votes": 8,
+        "ocr_reads": 12,
+    }
+    guess, raw, solver, votes, reads = unpack_captcha_result(result)
+    assert guess == "ab3xy"
+    assert raw == "Ab3xY"
+    assert solver == "ddddocr"
+    assert votes == 8
+    assert reads == 12
+
+
 def test_best_captcha_guess_trims_overlong():
     from idgod_order_cli.captcha import best_captcha_guess
 

@@ -27,6 +27,16 @@ def test_parse_btcpay_fixture(btcpay_html: str):
     assert details.summary_lines()
 
 
+def test_btcpay_details_complete(btcpay_html: str):
+    from idgod_order_cli.btcpay import btcpay_details_complete, parse_btcpay_html
+
+    details = parse_btcpay_html(
+        btcpay_html,
+        "https://btcpay.idgod.ph/invoice?id=TCr53ZRiMzJT2JwSrLfnkQ",
+    )
+    assert btcpay_details_complete(details)
+
+
 def test_parse_empty_html():
     details = parse_btcpay_html("<html></html>")
     assert not details.populated

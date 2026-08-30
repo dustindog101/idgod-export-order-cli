@@ -50,8 +50,8 @@ async def verify_person_upload(
     *,
     proxy,
 ) -> dict:
-    photo_path = await _resolve_image(person.photo, orderer.fallback_photo, proxy)
-    sig_path = await _resolve_image(person.signature, orderer.fallback_signature, proxy)
+    photo_path = await _resolve_image(person.photo, orderer.fallback_photo)
+    sig_path = await _resolve_image(person.signature, orderer.fallback_signature)
     expected_photo = photo_path.stat().st_size
     expected_sig = sig_path.stat().st_size
 
@@ -121,8 +121,8 @@ async def run(path: Path, *, tor: bool, limit: int) -> int:
 
     photo_hashes: set[str] = set()
     for person in people:
-        photo_path = await _resolve_image(person.photo, orderer.fallback_photo, proxy)
-        sig_path = await _resolve_image(person.signature, orderer.fallback_signature, proxy)
+        photo_path = await _resolve_image(person.photo, orderer.fallback_photo)
+        sig_path = await _resolve_image(person.signature, orderer.fallback_signature)
         photo_hash = hashlib.sha256(photo_path.read_bytes()).hexdigest()
         photo_hashes.add(photo_hash)
         print(

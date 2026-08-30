@@ -158,7 +158,7 @@ def parse_btcpay_html(html: str, url: str = "") -> PaymentDetails:
     exchange_rate = _attr(
         r'id="PaymentDetails-ExchangeRate"[^>]*>.*?data-clipboard="([^"]+)"', html
     )
-    network_cost = _attr(
+    network_cost_btc = _attr(
         r'id="PaymentDetails-NetworkCost"[^>]*>.*?data-clipboard="([^"]+)"', html
     )
     recommended_fee = _attr(
@@ -194,16 +194,28 @@ def parse_btcpay_html(html: str, url: str = "") -> PaymentDetails:
     )
 
     if srv:
+        if not invoice_id:
+            invoice_id = str(srv.get("invoiceId") or "")
         if not amount_due_btc:
             amount_due_btc = str(srv.get("due") or srv.get("orderAmount") or "")
         if not amount_due_display and amount_due_btc:
             amount_due_display = f"{amount_due_btc} BTC"
+        if not total_price_btc:
+            total_price_btc = str(srv.get("orderAmount") or "")
         if not total_fiat:
             total_fiat = str(srv.get("orderAmountFiat") or "")
+        if not exchange_rate:
+            exchange_rate = str(srv.get("rate") or "")
+        if not network_cost_btc and srv.get("networkFee") is not None:
+            network_cost_btc = str(srv.get("networkFee") or "")
+        if not recommended_fee and srv.get("feeRate") is not None:
+            recommended_fee = str(srv.get("feeRate") or "")
         if not btc_address:
             btc_address = str(srv.get("address") or "")
         if not pay_wallet:
             pay_wallet = str(srv.get("invoiceBitcoinUrl") or "")
+        if not payment_method:
+            payment_method = str(srv.get("paymentMethodName") or "")
 
     raw = {
         k: v
@@ -212,6 +224,9 @@ def parse_btcpay_html(html: str, url: str = "") -> PaymentDetails:
             "total_fiat": total_fiat,
             "btc_address": btc_address,
             "exchange_rate": exchange_rate,
+            "total_price_btc": total_price_btc,
+            "network_cost_btc": network_cost_btc,
+            "recommended_fee": recommended_fee,
         }.items()
         if v
     }
@@ -224,7 +239,7 @@ def parse_btcpay_html(html: str, url: str = "") -> PaymentDetails:
         total_price_btc=total_price_btc,
         total_fiat=total_fiat,
         exchange_rate=exchange_rate,
-        network_cost_btc=network_cost,
+        network_cost_btc=network_cost_btc,
         recommended_fee=recommended_fee,
         btc_address=btc_address,
         pay_in_wallet_url=pay_wallet,
@@ -265,14 +280,26 @@ async def fetch_btcpay_from_page(page, *, timeout_ms: int = 30000) -> PaymentDet
     return parse_btcpay_html(await page.content(), url)
 
 
+def btcpay_details_complete(details: PaymentDetails) -> bool:
+    """True when we have the fields users expect in a payment summary."""
+    return bool(
+        details.btc_address
+        and details.amount_due_btc
+        and details.total_fiat
+        and details.exchange_rate
+        and details.expiry_text
+        and details.order_number
+    )
+
+
 async def fetch_btcpay_http(
     client: Any,
     url: str,
     *,
     timeout: float = 30.0,
-    poll_interval: float = 0.8,
+    poll_interval: float = 0.35,
 ) -> PaymentDetails:
-    """Fetch a BTCPay invoice page over httpx; poll until key fields render."""
+    """Fetch a BTCPay invoice page over httpx; poll briefly if Vue fields are late."""
     import asyncio
     import time
 
@@ -285,11 +312,11 @@ async def fetch_btcpay_http(
         details = parse_btcpay_html(resp.text, str(resp.url))
         if details.populated:
             best = details
-            if details.btc_address and details.amount_due_btc and details.exchange_rate:
-                return details
-            if details.btc_address and details.amount_due_btc and (
-                details.exchange_rate or details.expiry_text
-            ):
+        if btcpay_details_complete(details):
+            return details
+        if details.btc_address and details.amount_due_btc and details.total_fiat:
+            # initialSrvModel often has everything on first paint — don't wait for Vue DOM
+            if details.exchange_rate and details.expiry_text:
                 return details
         await asyncio.sleep(poll_interval)
     return best

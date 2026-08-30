@@ -156,6 +156,7 @@ class ShippingInfo:
     state: str = ""
     zip: str = ""
     country: str = "USA"
+    phone: str = ""
     raw: str = ""
 
     @property
@@ -250,7 +251,7 @@ class CheckoutResult:
     captcha_attempts_used: int = 0
     elapsed_ms: int = 0
     tor_mode: str = ""
-    transport: str = "browser"
+    transport: str = "http"
     input_file: str = ""
     cache_path: str = ""
     timings: dict[str, int] = field(default_factory=dict)

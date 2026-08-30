@@ -98,6 +98,16 @@ def best_captcha_guess(text: str) -> str:
     return base[:CAPTCHA_LEN_MAX].lower()
 
 
+def unpack_captcha_result(result: dict[str, Any]) -> tuple[str, str, str, int, int]:
+    """Return guess, raw_text, solver, consensus_votes, ocr_reads."""
+    raw_text = str(result.get("raw_text") or result.get("text") or "")
+    guess = str(result.get("guess") or best_captcha_guess(raw_text))
+    solver = str(result.get("solver", ""))
+    votes = int(result.get("consensus_votes", 1))
+    reads = int(result.get("ocr_reads", 1))
+    return guess, raw_text, solver, votes, reads
+
+
 def preprocess_captcha_variants(image_bytes: bytes) -> list[tuple[str, bytes]]:
     """Generate OCR-friendly views of the same captcha (raw + enhanced)."""
     out: list[tuple[str, bytes]] = [("raw", image_bytes)]
