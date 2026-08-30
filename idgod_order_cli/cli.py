@@ -305,7 +305,7 @@ def _load_people(args: argparse.Namespace) -> list[Person]:
 
     raise SystemExit(
         "Error: provide a spreadsheet file or single-person flags.\n"
-        "  idgod-order order orders.xlsx --tor --email you@proton.me "
+        "  idgod-order order orders.xlsx --tor --email you@example.com "
         "--fallback-photo ~/Desktop/good.jpg"
     )
 
@@ -643,7 +643,7 @@ async def _cmd_order(args: argparse.Namespace) -> int:
     if full_order and not args.email:
         raise SystemExit(
             "Error: --email is required for checkout (payment instructions are sent there).\n"
-            "  idgod-order order orders.xlsx --tor --email you@proton.me ..."
+            "  idgod-order order orders.xlsx --tor --email you@example.com ..."
         )
 
     ui = RunUI(json_mode=args.json)

@@ -17,8 +17,8 @@ def test_export_only_fields_include_order_metadata():
 def test_parse_csv_two_people_different_fields(orders_csv):
     people = parse_file(orders_csv)
     assert len(people) == 2
-    assert people[0].first_name == "Anaya"
-    assert people[1].first_name == "Josie"
+    assert people[0].first_name == "Jane"
+    assert people[1].first_name == "John"
     assert people[0].eye_color == "Brown"
     assert people[1].eye_color == "Green"
     assert people[0].street != people[1].street
@@ -27,8 +27,8 @@ def test_parse_csv_two_people_different_fields(orders_csv):
 
 def test_shipping_extracted_once_from_csv(orders_csv):
     raw = extract_shipping_text(orders_csv)
-    assert "Oakland" in raw
-    assert "94619" in raw
+    assert "Seattle" in raw
+    assert "98101" in raw
 
 
 def test_parse_shipping_line():
@@ -47,13 +47,13 @@ def test_parse_vendor_column_aliases(tmp_path):
     )
     people = parse_file(path)
     assert len(people) == 2
-    assert people[0].first_name == "Anaya"
-    assert people[0].street == "5125 NE Latimer Place"
-    assert people[0].zip == "98105"
-    assert people[0].photo == "https://example.com/anaya-photo.webp"
-    assert people[0].signature == "https://example.com/anaya-sig.webp"
+    assert people[0].first_name == "Jane"
+    assert people[0].street == "123 Pine St"
+    assert people[0].zip == "98101"
+    assert people[0].photo == "https://example.com/jane-photo.webp"
+    assert people[0].signature == "https://example.com/jane-sig.webp"
     assert people[0].issue_date == "05/28/2026"
-    assert people[1].photo == "https://example.com/josie-photo.webp"
+    assert people[1].photo == "https://example.com/john-photo.webp"
 
 
 def test_parse_json_people_list(tmp_path):

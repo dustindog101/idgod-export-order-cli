@@ -15,15 +15,15 @@ HTTP is default; add --browser or --playwright for Chrome automation."""
 ORDER_EPILOG = """\
 examples:
   # Fast HTTP (default)
-  idgod-order order orders.xlsx --tor -e you@proton.me \\
+  idgod-order order orders.xlsx --tor -e you@example.com \\
     --fallback-photo ~/Desktop/good.jpg
 
   # Playwright / Chrome (same flags + --browser or --playwright)
-  idgod-order order orders.xlsx --tor -e you@proton.me --browser
-  idgod-order order orders.xlsx --tor -e you@proton.me --playwright --headed
+  idgod-order order orders.xlsx --tor -e you@example.com --browser
+  idgod-order order orders.xlsx --tor -e you@example.com --playwright --headed
 
   idgod-order order orders.xlsx --proxy-file proxies/webshare.txt \\
-    --email you@proton.me --fallback-photo ~/Desktop/good.jpg --limit 1
+    --email you@example.com --fallback-photo ~/Desktop/good.jpg --limit 1
 
   idgod-order order orders.xlsx --dry-run
   idgod-order probe --tor

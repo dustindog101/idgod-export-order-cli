@@ -14,7 +14,7 @@
 |------|--------|
 | HTTP transport as default | ✅ |
 | Full checkout + captcha + BTCPay | ✅ HTTP and Playwright |
-| Coupon `hartlr` on invoice | ✅ `finalize_coupon_result()` |
+| Coupon handling on invoice | ✅ `finalize_coupon_result()` |
 | HTTP captcha always rejected | ✅ Fixed hash rotation (no UPDATE in captcha loop) |
 | Per-person export photos | ✅ Prefetch URLs direct, upload via Tor |
 | Cart checkout fields | ✅ |

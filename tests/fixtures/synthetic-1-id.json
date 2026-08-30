@@ -1,0 +1,40 @@
+{
+  "exportedAt": "2026-08-30T12:00:00.000Z",
+  "exportNote": "1 ID synthetic test",
+  "shippingOverride": null,
+  "orderCount": 1,
+  "idRowCount": 1,
+  "orders": [
+    {
+      "orderId": "SYNTH-001",
+      "status": "pending",
+      "shippingAddress": "Jane Doe, 100 Synthetic Way, Seattle, WA, 98101, USA",
+      "trackingNumber": "",
+      "orderNote": "",
+      "exportNote": "",
+      "ids": [
+        {
+          "idIndex": 1,
+          "productId": "WA:STANDARD",
+          "state": "Washington",
+          "firstName": "Jane",
+          "middleName": "Marie",
+          "lastName": "Doe",
+          "dob": "07/11/2004",
+          "issueDate": "05/28/2026",
+          "streetAddress": "123 Pine St",
+          "city": "Seattle",
+          "zipCode": "98101",
+          "zipPlus4": "",
+          "sex": "Female",
+          "height": "5'4\"",
+          "weight": "120",
+          "eyeColor": "Brown",
+          "hairColor": "Brown",
+          "photoUrl": "tests/fixtures/synthetic_photo.jpg",
+          "signatureUrl": "tests/fixtures/synthetic_signature.jpg"
+        }
+      ]
+    }
+  ]
+}

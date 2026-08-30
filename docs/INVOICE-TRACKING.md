@@ -55,7 +55,7 @@ Extend each cached order record:
   "success": true,
   "payment_url": "https://btcpay.idgod.ph/invoice?id=AXjkREgrthGf1P1Dboqxme",
   "payment_details": { "invoice_id": "…", "order_number": "903766", "total_fiat": "$260.00" },
-  "submitted_ids": ["Anaya …", "Josie …"],
+  "submitted_ids": ["Jane Doe", "John Smith"],
   "payment_tracking": {
     "status": "unpaid",
     "marked_paid_at": null,

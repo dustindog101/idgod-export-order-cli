@@ -1,21 +1,21 @@
 {
-  "exportedAt": "2026-07-10T05:00:00.000Z",
-  "exportNote": "multi-shipping synthetic test",
+  "exportedAt": "2026-08-30T12:00:00.000Z",
+  "exportNote": "2 IDs synthetic test with different shipping addresses",
   "shippingOverride": null,
   "orderCount": 2,
   "idRowCount": 2,
   "orders": [
     {
-      "orderId": "test-order-seattle-1",
+      "orderId": "SYNTH-002-A",
       "status": "pending",
       "shippingAddress": "Jane Doe, 100 Synthetic Way, Seattle, WA, 98101, USA",
       "trackingNumber": "",
-      "orderNote": "test duplicate A",
+      "orderNote": "",
       "exportNote": "",
       "ids": [
         {
           "idIndex": 1,
-          "productId": "Washington",
+          "productId": "WA:STANDARD",
           "state": "Washington",
           "firstName": "Jane",
           "middleName": "Marie",
@@ -31,39 +31,39 @@
           "weight": "120",
           "eyeColor": "Brown",
           "hairColor": "Brown",
-          "photoUrl": "https://example.com/jane-photo.webp",
-          "signatureUrl": "https://example.com/jane-sig.webp"
+          "photoUrl": "tests/fixtures/synthetic_photo.jpg",
+          "signatureUrl": "tests/fixtures/synthetic_signature.jpg"
         }
       ]
     },
     {
-      "orderId": "test-order-seattle-2",
+      "orderId": "SYNTH-002-B",
       "status": "pending",
-      "shippingAddress": "John Smith, 200 Synthetic Blvd, Seattle, WA, 98102, USA",
+      "shippingAddress": "John Smith, 200 Sample Blvd, Los Angeles, CA, 90001, USA",
       "trackingNumber": "",
-      "orderNote": "test duplicate B",
+      "orderNote": "",
       "exportNote": "",
       "ids": [
         {
           "idIndex": 2,
-          "productId": "Washington",
-          "state": "Washington",
+          "productId": "CA:STANDARD",
+          "state": "California",
           "firstName": "John",
           "middleName": "David",
           "lastName": "Smith",
           "dob": "09/15/2004",
           "issueDate": "05/28/2026",
           "streetAddress": "456 Oak Ave",
-          "city": "Seattle",
-          "zipCode": "98102",
+          "city": "Los Angeles",
+          "zipCode": "90001",
           "zipPlus4": "",
           "sex": "Male",
           "height": "5'10\"",
           "weight": "165",
           "eyeColor": "Green",
           "hairColor": "Blond",
-          "photoUrl": "https://example.com/john-photo.webp",
-          "signatureUrl": "https://example.com/john-sig.webp"
+          "photoUrl": "tests/fixtures/synthetic_photo.jpg",
+          "signatureUrl": "tests/fixtures/synthetic_signature.jpg"
         }
       ]
     }

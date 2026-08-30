@@ -8,11 +8,11 @@ Complete reference for placing orders on idgod.ph from spreadsheet exports.
 cd ~/Projects/idgod-order-cli
 pip install -e '.[captcha]'
 
-./idgod-order order ~/Downloads/orders-2026-07-08.xlsx \
+./idgod-order order tests/fixtures/synthetic-1-id.json \
   --tor \
-  --email you@proton.me \
-  --fallback-photo ~/Desktop/good.jpg \
-  --fallback-signature ~/Desktop/good.jpg
+  --email test@example.com \
+  --fallback-photo tests/fixtures/synthetic_photo.jpg \
+  --fallback-signature tests/fixtures/synthetic_signature.jpg
 ```
 
 That single command:
@@ -20,7 +20,7 @@ That single command:
 1. Reads every row in the spreadsheet as a separate ID
 2. Fills each ID order form and adds it to the cart
 3. Fills checkout (shipping from the `Shipping` column, email from `--email`)
-4. Applies coupon `hartlr` (default)
+4. Applies coupon if `--discount <code>` is specified
 5. Solves the captcha and clicks FINISH ORDER
 6. Scrapes the BTCPay page and prints the BTC invoice link + address
 
@@ -77,19 +77,13 @@ CLI overrides: `--fallback-photo`, `--fallback-signature` when URLs expire. **Om
 | `--shipping` or `--shipping-*` | Override parsed shipping |
 | Default | Payment: **Bitcoin** |
 | Default | Shipping speed: **standard** (~20 days, $20) |
-| `--discount` | Coupon code (default `hartlr`; use `""` for none) |
+| `--discount` | Coupon code (optional; default: none) |
 | `--no-require-coupon` | Allow checkout at full price if coupon missing on invoice |
 
 ### Coupon behaviour
 
-idgod.ph often keeps cart `#total` unchanged after UPDATE. The **BTCPay invoice fiat** is authoritative:
-
-| IDs | Cart | Invoice with `hartlr` | Full price |
-|-----|------|----------------------|------------|
-| 1 | $130 | ~$85 | ~$150 |
-| 4 | $480 | ~$260 | ~$500 |
-
-`discount_applied: true` in JSON only when invoice &lt; ~75% of cart total.
+idgod.ph often keeps cart `#total` unchanged after UPDATE. The **BTCPay invoice fiat** is authoritative.
+`discount_applied: true` in JSON only when invoice reflects discount from cart total.
 
 ---
 
@@ -246,27 +240,29 @@ Debug images saved to `~/.cache/idgod-order-cli/captcha-debug/`.
 ### One person test (Tor)
 
 ```bash
-./idgod-order order orders.xlsx \
+./idgod-order order tests/fixtures/synthetic-1-id.json \
   --tor --limit 1 \
-  --email you@proton.me \
-  --fallback-photo ~/Desktop/good.jpg
+  --email test@example.com \
+  --fallback-photo tests/fixtures/synthetic_photo.jpg \
+  --fallback-signature tests/fixtures/synthetic_signature.jpg
 ```
 
-### All rows, Webshare proxy
+### All rows, proxy file
 
 ```bash
-PROXY=$(head -1 proxies/webshare.txt)
-./idgod-order order orders.xlsx \
-  --proxy "$PROXY" \
-  --email you@proton.me \
-  --fallback-photo ~/Desktop/good.jpg
+./idgod-order order tests/fixtures/synthetic-2-ids.json \
+  --proxy-file proxies/webshare.txt.example \
+  --email test@example.com \
+  --fallback-photo tests/fixtures/synthetic_photo.jpg \
+  --fallback-signature tests/fixtures/synthetic_signature.jpg
 ```
 
 ### Express shipping + Litecoin
 
 ```bash
-./idgod-order order orders.xlsx --tor --email you@proton.me \
-  --fallback-photo ~/Desktop/good.jpg \
+./idgod-order order tests/fixtures/synthetic-1-id.json --tor --email test@example.com \
+  --fallback-photo tests/fixtures/synthetic_photo.jpg \
+  --fallback-signature tests/fixtures/synthetic_signature.jpg \
   --shipping-method express \
   --payment-method litecoin
 ```

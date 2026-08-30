@@ -54,18 +54,18 @@ def test_form_post_data_scrapes_hidden_and_select():
 
 def test_detect_coupon_rejection():
     html = "<div class='error'>Coupon code invalid or expired</div>"
-    assert detect_coupon_rejection(html, "hartlr")
+    assert detect_coupon_rejection(html, "DISCOUNT")
 
 
 def test_finalize_coupon_result():
     from idgod_order_cli.http_forms import finalize_coupon_result
 
-    applied, msg, savings, inv = finalize_coupon_result("hartlr", 480.0, "$260.00")
+    applied, msg, savings, inv = finalize_coupon_result("DISCOUNT", 480.0, "$260.00")
     assert applied is True
     assert savings == 220.0
     assert inv == 260.0
 
-    applied2, msg2, _, inv2 = finalize_coupon_result("hartlr", 480.0, "$500.00")
+    applied2, msg2, _, inv2 = finalize_coupon_result("DISCOUNT", 480.0, "$500.00")
     assert applied2 is False
     assert inv2 == 500.0
     assert "not on invoice" in msg2
@@ -74,12 +74,12 @@ def test_finalize_coupon_result():
 def test_coupon_savings_message():
     from idgod_order_cli.http_forms import coupon_savings_message, invoice_reflects_discount
 
-    applied, msg, savings = coupon_savings_message("hartlr", 480.0, 480.0, invoice_fiat="$260.00")
+    applied, msg, savings = coupon_savings_message("DISCOUNT", 480.0, 480.0, invoice_fiat="$260.00")
     assert applied is True
     assert savings == 220.0
     assert "invoice $260.00" in msg
 
-    applied2, msg2, savings2 = coupon_savings_message("hartlr", 480.0, 480.0, invoice_fiat="$500.00")
+    applied2, msg2, savings2 = coupon_savings_message("DISCOUNT", 480.0, 480.0, invoice_fiat="$500.00")
     assert applied2 is False
     assert "not on invoice" in msg2
 

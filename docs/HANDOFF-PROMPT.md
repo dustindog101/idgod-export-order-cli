@@ -15,7 +15,7 @@ You are continuing work on **idgod-order-cli** (IDGod order automation CLI).
 6. Run `pytest tests/ -q` before and after changes
 7. Do **not** place live test orders without explicit user approval (vendor bans spam)
 
-**Verified (2026-07-18):** HTTP 4-ID order, export photos only, `hartlr` → $260 BTCPay invoice.
+**Verified:** HTTP order, export photos, BTCPay invoice generation.
 
 **Transport:** HTTP default; `--playwright` fallback.
 

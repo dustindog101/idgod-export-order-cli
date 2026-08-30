@@ -4,10 +4,9 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 PROXY=$(sed -n '1p' proxies/webshare.txt)
 exec ./idgod-order order \
-  --file ~/Downloads/orders-2026-07-08.xlsx \
-  --proxy "$PROXY" \
-  --fallback-photo ~/Desktop/good.jpg \
-  --fallback-signature ~/Desktop/good.jpg \
-  --discount hartlr \
-  --email test@proton.me \
+  --file tests/fixtures/synthetic-2-ids.json \
+  --tor \
+  --fallback-photo tests/fixtures/synthetic_photo.jpg \
+  --fallback-signature tests/fixtures/synthetic_signature.jpg \
+  --email test@example.com \
   -y

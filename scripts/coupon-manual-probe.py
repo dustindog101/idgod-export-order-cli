@@ -28,7 +28,7 @@ async def main() -> int:
     )
     headed = "--headed" in sys.argv
     do_checkout = "--checkout" in sys.argv
-    code = "hartlr"
+    code = ""
     for i, a in enumerate(sys.argv):
         if a == "--discount" and i + 1 < len(sys.argv):
             code = sys.argv[i + 1]
@@ -36,21 +36,21 @@ async def main() -> int:
     people = parse_export_file(export).people[:1]
     person = people[0]
     shipping = ShippingInfo(
-        name="Anaya Samsotha-Cooley",
-        street="5125 Leona St",
-        city="Oakland",
-        state="CA",
-        zip="94619",
+        name="Jane Doe",
+        street="100 Synthetic Way",
+        city="Seattle",
+        state="WA",
+        zip="98101",
         country="USA",
-        email="test@proton.me",
-        phone="5105550199",
+        email="test@example.com",
+        phone="5550100000",
     )
 
     orderer = IdGodOrderer(
         use_tor=True,
         discount_code=code,
-        fallback_photo="/Users/king/Desktop/good.jpg",
-        fallback_signature="/Users/king/Desktop/good.jpg",
+        fallback_photo="tests/fixtures/synthetic_photo.jpg",
+        fallback_signature="tests/fixtures/synthetic_signature.jpg",
         shipping=shipping,
         checkout=do_checkout,
         checkout_submit=do_checkout,

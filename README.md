@@ -40,13 +40,13 @@ One command: each row → ID form → cart → coupon → captcha → BTCPay inv
 ```
 
 ## Coupon
-
-Default code: `hartlr` (reseller). Discount shows on the **BTCPay invoice**, not the cart total.
-
+ 
+Discount shows on the **BTCPay invoice**, not the cart total.
+ 
 | Flag | Effect |
 |------|--------|
-| `--discount hartlr` | Default |
-| `--discount ""` | No coupon |
+| `--discount <code>` | Apply coupon code |
+| `--discount ""` | No coupon (default) |
 | `--no-require-coupon` | Try coupon but allow full-price checkout |
 
 ## Planned: payment tracking

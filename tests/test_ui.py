@@ -25,7 +25,7 @@ def test_format_result_human_success():
         message="Coupon saved",
         payment_url="https://btcpay.idgod.ph/invoice?id=abc",
         total_after_discount=85.0,
-        discount_code="hartlr",
+        discount_code="DISCOUNT",
         discount_applied=True,
         order_results=[
             OrderResult(person=person, success=True, message="ok", state_selected="Washington", price=100)

@@ -37,7 +37,7 @@ One `order` command: row → ID form → cart → coupon → captcha → BTCPay 
 | HTTP order + checkout | ✅ Default |
 | Playwright order + checkout | ✅ `--playwright` |
 | Per-person photo/signature from export URLs | ✅ Prefetch direct, upload via Tor |
-| Coupon `hartlr` | ✅ Verified on BTCPay invoice ($480 cart → $260 invoice for 4 IDs) |
+| Coupon handling | ✅ Verified on BTCPay invoice fiat |
 | Coupon detection | ✅ `finalize_coupon_result()` — invoice fiat authoritative, not `#total` |
 | HTTP captcha | ✅ Fixed: no cart UPDATE between OCR and FINISH (hash rotation bug) |
 | Order result cache | ✅ `~/.cache/idgod-order-cli/orders/` |
@@ -47,38 +47,35 @@ One `order` command: row → ID form → cart → coupon → captcha → BTCPay 
 ## Critical environment facts
 
 1. **Use Tor or proxy** — direct idgod.ph often fails (`connection reset`).
-2. **Coupon applies on BTCPay invoice**, not cart `#total`. Cart stays $480; invoice shows $260 with `hartlr`.
-3. **Do not spam test orders** — vendor banned `hartlr` once for excessive test checkouts. Ask before bulk live runs.
+2. **Coupon applies on BTCPay invoice**, not cart `#total`.
+3. **Do not spam test orders** — vendor monitors for excessive test checkouts. Ask before bulk live runs.
 4. **Export photo URLs** — R2 signed URLs work; omit `--fallback-photo` when URLs are live.
 5. **HTTP captcha** — never call `_sync_cart_coupon_http()` between OCR and FINISH POST.
 
-## Verified commands (2026-07-18)
+## Verified commands
 
 ```bash
 cd /Users/king/Projects/idgod-order-cli
 pip install -e '.[captcha]'
 
 # Dry run
-./idgod-order order ~/Downloads/orders-2026-07-18.xlsx --dry-run -y
+./idgod-order order tests/fixtures/synthetic-2-ids.json --dry-run -y
 
-# Full order — HTTP, export images only, no fallback
-./idgod-order order ~/Downloads/orders-2026-07-18.xlsx \
+# Full order — HTTP
+./idgod-order order tests/fixtures/synthetic-2-ids.json \
   --tor \
-  -e contact@mail.idpirate.com \
-  -y --json --single-checkout \
-  --discount hartlr
+  -e test@example.com \
+  -y --json --single-checkout
 
 # Playwright fallback if HTTP captcha struggles
 ./idgod-order order … --playwright …
 
-# No coupon
-./idgod-order order … --discount ""
+# With coupon
+./idgod-order order … --discount "PROMO"
 
 # Allow full-price checkout if coupon fails
 ./idgod-order order … --no-require-coupon
 ```
-
-**Last verified live run:** 4 Washington IDs, export photos only, `hartlr` → invoice **$260**, order **903766**.
 
 ## File map
 
@@ -161,4 +158,3 @@ Full index: [docs/DOCUMENTATION.md](docs/DOCUMENTATION.md)
 - Site: https://www.idgod.ph/order
 - Cart: https://www.idgod.ph/cart
 - BTCPay: https://btcpay.idgod.ph/
-- Reseller discount: email idgod@idgod.ph (code `hartlr` is reseller-specific)

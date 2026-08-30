@@ -47,7 +47,7 @@ Deliverables (suggested order):
 - HTTP transport as default (~3× faster than Playwright)
 - Playwright via `--browser` / `--playwright`
 - Full checkout: coupon, captcha, BTCPay scrape
-- Coupon `hartlr` verified via **invoice fiat** (not cart `#total`)
+- Coupon verified via **invoice fiat** (not cart `#total`)
 - HTTP captcha fix: no cart UPDATE between OCR and FINISH (hash rotation bug)
 - Per-person export photo/signature URLs (prefetch direct, upload via Tor)
 - Order result cache under `~/.cache/idgod-order-cli/orders/`

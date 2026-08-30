@@ -55,15 +55,15 @@
 ## Shipping column format (from sample)
 
 ```
-Anaya Samsotha-Cooley, 5125 Leona St, Oakland, CA, 94619, USA
+Jane Doe, 100 Synthetic Way, Seattle, WA, 98101, USA
 ```
 
 This now parses automatically with `--checkout` and can be verified without a browser:
 
 ```bash
-./idgod-order order --file /Users/king/Downloads/orders-2026-07-08.xlsx \
-  --fallback-photo /Users/king/Desktop/good.jpg \
-  --checkout --email test@example.com --dry-run -y --json
+./idgod-order order tests/fixtures/synthetic-1-id.json \
+  --fallback-photo tests/fixtures/synthetic_photo.jpg \
+  --email test@example.com --dry-run -y --json
 ```
 
 ## State dropdown

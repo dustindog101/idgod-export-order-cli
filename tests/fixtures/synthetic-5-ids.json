@@ -1,0 +1,164 @@
+{
+  "exportedAt": "2026-08-30T12:00:00.000Z",
+  "exportNote": "5 IDs synthetic test with multiple states and shipping addresses",
+  "shippingOverride": null,
+  "orderCount": 5,
+  "idRowCount": 5,
+  "orders": [
+    {
+      "orderId": "SYNTH-005-1",
+      "status": "pending",
+      "shippingAddress": "Jane Doe, 100 Synthetic Way, Seattle, WA, 98101, USA",
+      "trackingNumber": "",
+      "orderNote": "",
+      "exportNote": "",
+      "ids": [
+        {
+          "idIndex": 1,
+          "productId": "WA:STANDARD",
+          "state": "Washington",
+          "firstName": "Jane",
+          "middleName": "Marie",
+          "lastName": "Doe",
+          "dob": "07/11/2004",
+          "issueDate": "05/28/2026",
+          "streetAddress": "123 Pine St",
+          "city": "Seattle",
+          "zipCode": "98101",
+          "zipPlus4": "",
+          "sex": "Female",
+          "height": "5'4\"",
+          "weight": "120",
+          "eyeColor": "Brown",
+          "hairColor": "Brown",
+          "photoUrl": "tests/fixtures/synthetic_photo.jpg",
+          "signatureUrl": "tests/fixtures/synthetic_signature.jpg"
+        }
+      ]
+    },
+    {
+      "orderId": "SYNTH-005-2",
+      "status": "pending",
+      "shippingAddress": "John Smith, 200 Sample Blvd, Los Angeles, CA, 90001, USA",
+      "trackingNumber": "",
+      "orderNote": "",
+      "exportNote": "",
+      "ids": [
+        {
+          "idIndex": 2,
+          "productId": "CA:STANDARD",
+          "state": "California",
+          "firstName": "John",
+          "middleName": "David",
+          "lastName": "Smith",
+          "dob": "09/15/2004",
+          "issueDate": "05/28/2026",
+          "streetAddress": "456 Oak Ave",
+          "city": "Los Angeles",
+          "zipCode": "90001",
+          "zipPlus4": "",
+          "sex": "Male",
+          "height": "5'10\"",
+          "weight": "165",
+          "eyeColor": "Green",
+          "hairColor": "Blond",
+          "photoUrl": "tests/fixtures/synthetic_photo.jpg",
+          "signatureUrl": "tests/fixtures/synthetic_signature.jpg"
+        }
+      ]
+    },
+    {
+      "orderId": "SYNTH-005-3",
+      "status": "pending",
+      "shippingAddress": "Emily Davis, 300 Mockingbird Ln, Austin, TX, 78701, USA",
+      "trackingNumber": "",
+      "orderNote": "",
+      "exportNote": "",
+      "ids": [
+        {
+          "idIndex": 3,
+          "productId": "TX:STANDARD",
+          "state": "Texas",
+          "firstName": "Emily",
+          "middleName": "Rose",
+          "lastName": "Davis",
+          "dob": "04/18/2003",
+          "issueDate": "05/28/2026",
+          "streetAddress": "789 Congress Ave",
+          "city": "Austin",
+          "zipCode": "78701",
+          "zipPlus4": "",
+          "sex": "Female",
+          "height": "5'6\"",
+          "weight": "130",
+          "eyeColor": "Blue",
+          "hairColor": "Black",
+          "photoUrl": "tests/fixtures/synthetic_photo.jpg",
+          "signatureUrl": "tests/fixtures/synthetic_signature.jpg"
+        }
+      ]
+    },
+    {
+      "orderId": "SYNTH-005-4",
+      "status": "pending",
+      "shippingAddress": "Michael Brown, 400 Broadway, New York, NY, 10001, USA",
+      "trackingNumber": "",
+      "orderNote": "",
+      "exportNote": "",
+      "ids": [
+        {
+          "idIndex": 4,
+          "productId": "NY:STANDARD",
+          "state": "New York",
+          "firstName": "Michael",
+          "middleName": "James",
+          "lastName": "Brown",
+          "dob": "11/03/2002",
+          "issueDate": "05/28/2026",
+          "streetAddress": "101 Fifth Ave",
+          "city": "New York",
+          "zipCode": "10001",
+          "zipPlus4": "",
+          "sex": "Male",
+          "height": "6'0\"",
+          "weight": "180",
+          "eyeColor": "Hazel",
+          "hairColor": "Brown",
+          "photoUrl": "tests/fixtures/synthetic_photo.jpg",
+          "signatureUrl": "tests/fixtures/synthetic_signature.jpg"
+        }
+      ]
+    },
+    {
+      "orderId": "SYNTH-005-5",
+      "status": "pending",
+      "shippingAddress": "Sophia Wilson, 500 Ocean Dr, Miami, FL, 33139, USA",
+      "trackingNumber": "",
+      "orderNote": "",
+      "exportNote": "",
+      "ids": [
+        {
+          "idIndex": 5,
+          "productId": "FL:STANDARD",
+          "state": "Florida",
+          "firstName": "Sophia",
+          "middleName": "Grace",
+          "lastName": "Wilson",
+          "dob": "08/25/2004",
+          "issueDate": "05/28/2026",
+          "streetAddress": "202 Collins Ave",
+          "city": "Miami",
+          "zipCode": "33139",
+          "zipPlus4": "",
+          "sex": "Female",
+          "height": "5'5\"",
+          "weight": "125",
+          "eyeColor": "Blue",
+          "hairColor": "Blond",
+          "photoUrl": "tests/fixtures/synthetic_photo.jpg",
+          "signatureUrl": "tests/fixtures/synthetic_signature.jpg"
+        }
+      ]
+    }
+  ]
+}

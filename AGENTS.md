@@ -46,7 +46,7 @@ pytest tests/ -q
 - `checkout_completed: true`
 - `submitted_ids` matches row count
 - `payment_url` is BTCPay
-- `discount_applied` matches invoice (if coupon used): 4 IDs ≈ $260 with `hartlr`, not $500
+- `discount_applied` matches invoice (if coupon used): verified via invoice fiat, not cart total
 
 ## Code conventions
 

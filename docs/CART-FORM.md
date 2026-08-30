@@ -16,7 +16,7 @@ Scraped from live cart with items (2026-07-09).
 | `#id_email` | email | Payment instructions sent here |
 | `#id_payment_method` | payment_method | Bitcoin / Litecoin / Card |
 | `#id_priority` | priority | Shipping speed tier |
-| `#id_coupon` | coupon | Discount code (e.g. `hartlr`) |
+| `#id_coupon` | coupon | Optional discount code |
 | `#id_captcha_1` | captcha_1 | **Blocks automated FINISH ORDER** |
 
 ## Buttons

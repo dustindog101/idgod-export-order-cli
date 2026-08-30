@@ -1,0 +1,2 @@
+Order ID,Account,Shipping,State,First Name,Middle Name,Last Name,DOB,Issue Date,Street,City,ZIP,Sex,Height,Weight,Eye Color,Hair Color,Photo URL,Signature URL,Order Total
+SYNTH-001,acct-1,"Jane Doe, 100 Synthetic Way, Seattle, WA, 98101, USA",Washington,Jane,Marie,Doe,07/11/2004,05/28/2026,123 Pine St,Seattle,98101,Female,5'4",120,Brown,Brown,tests/fixtures/synthetic_photo.jpg,tests/fixtures/synthetic_signature.jpg,110.00

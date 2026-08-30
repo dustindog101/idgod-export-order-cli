@@ -9,7 +9,7 @@ Maps to the ID order form. If idgod lists multiple dropdown options for a state,
 | Column | Maps to | Example row 2 vs 3 |
 |--------|---------|---------------------|
 | State | ID form state | Washington (same) |
-| First / Middle / Last Name | ID names | Anaya… vs Josie Paige Thompson |
+| First / Middle / Last Name | ID names | Jane Marie Doe vs John David Smith |
 | DOB | date of birth | 07/11/2004 vs 09/15/2004 |
 | Issue Date | license issue | same batch date |
 | Street / City / ZIP | **ID address** (Seattle) | different per person |
@@ -38,7 +38,7 @@ Order ID, Status, Tracking #, Order Note, Export Note, ID #, Account, etc.
 
 ```bash
 # Multi-person file — each row = one ID, shared shipping from Shipping column
-./idgod-order order orders.xlsx --checkout --email you@proton.me ...
+./idgod-order order orders.xlsx --checkout --email you@example.com ...
 
 # Limit rows
 ./idgod-order order orders.xlsx --limit 2 ...
