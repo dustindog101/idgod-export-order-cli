@@ -20,6 +20,7 @@ from .captcha import (
     normalize_captcha_text,
     solve_captcha_image,
 )
+from .fingerprint import BrowserFingerprint, generate_browser_fingerprint
 from .models import CheckoutFillMeta, CheckoutResult, OrderResult, Person, ShippingInfo
 from .proxies import ProxyConfig, TorManager, pick_working_proxy
 from .selectors import (
@@ -215,6 +216,7 @@ class IdGodOrderer:
         fetch_payment: bool = False,
         transport: str = "http",
         require_coupon: bool = True,
+        fingerprint: BrowserFingerprint | None = None,
         ui: Any = None,
     ):
         self.headless = headless
@@ -243,6 +245,7 @@ class IdGodOrderer:
         self.fetch_payment = fetch_payment
         self.transport = transport
         self.require_coupon = require_coupon
+        self.fingerprint = fingerprint or generate_browser_fingerprint()
         self.ui = ui
         self._tor_mgr = TorManager()
         self._active_proxy: ProxyConfig | None = None
@@ -1070,7 +1073,7 @@ class IdGodOrderer:
                         discount_code=self.discount_code,
                         checkout_attempted=self.checkout,
                     )
-                context = await browser.new_context(user_agent=USER_AGENT, viewport={"width": 1400, "height": 900})
+                context = await browser.new_context(**self.fingerprint.to_playwright_context_options())
                 page = await context.new_page()
                 page.set_default_timeout(self.timeout_ms)
                 if self.ui:

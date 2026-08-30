@@ -748,7 +748,11 @@ async def submit_http(orderer: IdGodOrderer, people: list[Person]) -> CheckoutRe
     image_cache: ImageCache = {}
     order_ctx: dict[str, Any] = {}
     try:
-        async with IdGodHttpSession(proxy=proxy, timeout=orderer.timeout_ms / 1000) as session:
+        async with IdGodHttpSession(
+            proxy=proxy,
+            timeout=orderer.timeout_ms / 1000,
+            fingerprint=orderer.fingerprint,
+        ) as session:
             if orderer.ui:
                 orderer.ui.phase("Order")
                 route = proxy.display if proxy else "direct"
